@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum House {
+  LOK_SABHA
+  RAJYA_SABHA
+  JOINT_SITTING
+  STATE_ASSEMBLY
+  STATE_COUNCIL
+}
+
+enum BillType {
+  ORDINARY
+  MONEY
+  FINANCIAL
+  CONSTITUTIONAL_AMENDMENT
+}
+
+enum BillStage {
+  DRAFT
+  INTRODUCED
+  LISTED
+  TAKEN_UP
+  REFERRED_COMMITTEE
+  COMMITTEE_REPORTED
+  PASSED_ORIGIN_HOUSE
+  TRANSMITTED_TO_OTHER_HOUSE
+  PASSED_SECOND_HOUSE
+  RETURNED_WITH_AMENDMENTS
+  JOINT_SITTING_POSSIBLE
+  JOINT_SITTING_PASSED
+  PRESIDENT_ASSENT_PENDING
+  ASSENTED
+  ACT_PUBLISHED
+  WITHDRAWN
+  LAPSED
+  INTRODUCED_LOK_SABHA
+  PASSED_LOK_SABHA
+  SENT_TO_RAJYA_SABHA
+  RAJYA_SABHA_RECOMMENDATION_PERIOD
+  RETURNED_WITH_RECOMMENDATIONS
+  DEEMED_PASSED_AFTER_14_DAYS
+}
+
+enum SittingStatus {
+  SCHEDULED
+  SAT
+  ADJOURNED
+  HOLIDAY
+  DEMO
+}
+
+enum CommitteeType {
+  STANDING
+  SELECT
+  JOINT
+  DEPARTMENT_RELATED
+}
+
+enum AnswerStatus {
+  LISTED
+  ANSWERED
+  DEFERRED
+}
+
+enum TimelineEventType {
+  SITTING_SCHEDULED
+  AGENDA_PUBLISHED
+  BILL_INTRODUCED
+  BILL_LISTED
+  BILL_TAKEN_UP
+  BILL_REFERRED_COMMITTEE
+  COMMITTEE_REPORT_TABLED
+  QUESTION_LISTED
+  QUESTION_ANSWERED
+  DEBATE_PUBLISHED
+  BILL_PASSED_ORIGIN_HOUSE
+  BILL_TRANSMITTED
+  BILL_PASSED_SECOND_HOUSE
+  BILL_ASSENTED
+  ACT_PUBLISHED
+  BILL_WITHDRAWN
+  BILL_LAPSED
+}
+
+model Bill {
+  id                 String          @id
+  title_en           String
+  title_hi           String
+  bill_number        String
+  bill_year          Int
+  bill_type          BillType
+  origin_house       House
+  current_stage      BillStage
+  ministry           String
+  introduced_on      DateTime
+  latest_action_date DateTime
+  source_url         String
+  summary            String
+  is_demo_seed       Boolean         @default(true)
+  actions            BillAction[]
+  timeline_events    TimelineEvent[]
+  acts               Act[]
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @updatedAt
+
+  @@index([bill_year, bill_type])
+  @@index([origin_house, current_stage])
+}
+
+model BillAction {
+  id            String   @id
+  bill_id       String
+  bill          Bill     @relation(fields: [bill_id], references: [id], onDelete: Cascade)
+  date          DateTime
+  house         House
+  action_type   String
+  description   String
+  source_url    String
+  is_demo_seed  Boolean  @default(true)
+  created_at    DateTime @default(now())
+
+  @@index([bill_id, date])
+  @@index([house, date])
+}
+
+model SittingDay {
+  id           String        @id
+  date         DateTime
+  house        House
+  session_name String
+  status       SittingStatus
+  is_demo_seed Boolean       @default(true)
+  created_at   DateTime      @default(now())
+
+  @@unique([date, house])
+  @@index([session_name])
+}
+
+model TimelineEvent {
+  id              String            @id
+  date            DateTime
+  house           House
+  type            TimelineEventType
+  title           String
+  description     String
+  related_bill_id String?
+  related_bill    Bill?             @relation(fields: [related_bill_id], references: [id], onDelete: SetNull)
+  source_url      String
+  is_demo_seed    Boolean           @default(true)
+  created_at      DateTime          @default(now())
+
+  @@index([date, house])
+  @@index([type])
+  @@index([related_bill_id])
+}
+
+model Committee {
+  id           String        @id
+  name         String
+  house        House
+  type         CommitteeType
+  source_url   String
+  is_demo_seed Boolean       @default(true)
+  created_at   DateTime      @default(now())
+
+  @@index([house, type])
+}
+
+model Question {
+  id            String       @id
+  number        String
+  house         House
+  date          DateTime
+  ministry      String
+  subject       String
+  answer_status AnswerStatus
+  source_url    String
+  is_demo_seed  Boolean      @default(true)
+  created_at    DateTime     @default(now())
+
+  @@index([house, date])
+  @@index([ministry])
+}
+
+model Act {
+  id             String   @id
+  title          String
+  act_number     String
+  year           Int
+  linked_bill_id String
+  linked_bill    Bill     @relation(fields: [linked_bill_id], references: [id], onDelete: Restrict)
+  india_code_url String
+  is_demo_seed   Boolean  @default(true)
+  created_at     DateTime @default(now())
+
+  @@index([year])
+  @@index([linked_bill_id])
+}
