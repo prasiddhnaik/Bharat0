@@ -7,16 +7,16 @@
 	let { event }: { event: TimelineEvent } = $props();
 </script>
 
-<article class="relative rounded-[1.25rem] border border-slate-800/90 bg-slate-950/80 p-4 shadow-xl shadow-black/20 transition hover:border-slate-700">
-	<div class="absolute -left-[1.05rem] top-5 h-3 w-3 rounded-full border border-cyan-300 bg-slate-950 shadow-[0_0_20px_rgba(34,211,238,0.5)]"></div>
+<article class="relative rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3 transition hover:bg-[var(--bz-surface-2)]">
+	<div class="absolute -left-[1.05rem] top-5 h-3 w-3 rounded-full border-2 border-[var(--bz-surface)] bg-[var(--bz-accent)]"></div>
 	<div class="flex flex-wrap items-center justify-between gap-3">
 		<EventChip {event} />
-		<span class="text-xs text-slate-500">{formatDate(event.date)}</span>
+		<span class="bz-mono text-[10.5px] text-[var(--bz-text-3)]">{formatDate(event.date)}</span>
 	</div>
-	<h3 class="mt-3 text-base font-semibold text-slate-100">{event.title}</h3>
-	<p class="mt-2 text-sm leading-6 text-slate-400">{event.description}</p>
-	<div class="mt-4 flex flex-wrap items-center gap-2">
+	<h3 class="mt-3 text-sm font-semibold text-[var(--bz-text-1)]">{event.title}</h3>
+	<p class="mt-1 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{event.description}</p>
+	<div class="mt-3 flex flex-wrap items-center gap-2">
 		<SourceBadge url={event.source_url} isDemoSeed={event.isDemoSeed} />
-		<span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-100">demo seed data</span>
+		<span class="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10.5px] text-amber-800">sandbox data</span>
 	</div>
 </article>

@@ -14,12 +14,13 @@
 	href={url}
 	target="_blank"
 	rel="noreferrer"
-	class="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-2 py-0.5 text-[11px] font-medium text-slate-300 transition hover:border-cyan-400/60 hover:text-cyan-100"
+	class="inline-flex items-center gap-1 rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10.5px] font-medium text-[var(--bz-text-2)] transition hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)] bz-focus"
 	aria-label={`Open source target: ${label ?? sourceKindLabels[kind]}`}
+	title={isDemoSeed ? 'Sandbox source link for this demo record' : 'Open official source'}
 >
-	<span class="h-1.5 w-1.5 rounded-full bg-cyan-300"></span>
+	<span class="h-1.5 w-1.5 rounded-full bg-[var(--bz-accent)]"></span>
 	{label ?? sourceKindLabels[kind]}
 	{#if isDemoSeed}
-		<span class="text-amber-200/90">demo</span>
+		<span class="text-[var(--bz-accent)]">sandbox</span>
 	{/if}
 </a>

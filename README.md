@@ -42,31 +42,74 @@ The prototype is structured to model:
 
 ## Tech Stack
 
-- SvelteKit 2
-- Svelte 5
+- React 19
+- Vite
 - TypeScript with strict checking
-- Tailwind CSS via the official Svelte add-on flow
-- PostgreSQL-ready Prisma schema
-- Server-side repository boundary for future database-backed reads
-- Prisma-to-domain mappers for future PostgreSQL read models
-- Typed demo seed data for the current UI
+- Tailwind CSS
+- Node HTTP server for production
+- PostgreSQL through Prisma
+- Neon-compatible hosted Postgres
+- Groq/NVIDIA-compatible AI bill analysis providers
 
 ## Run Locally
 
 ```bash
 npm install
-npm run check
-npm run build
-npm run dev -- --open
-```
-
-The UI does not require a database yet. To prepare a local PostgreSQL database later, copy `.env.example` to `.env`, set `DATABASE_URL`, then use Prisma commands.
-
-```bash
 cp .env.example .env
 npm run db:generate
+npm run db:push
+npm run db:seed
+npm run check
+npm run build
+npm run dev -- --host 127.0.0.1
+```
+
+For local Docker Postgres:
+
+```bash
+docker compose up -d
+npm run db:setup
+```
+
+For Neon, set `DATABASE_URL` in `.env` to the Neon connection string, then run:
+
+```bash
+npm run db:generate
+npm run db:push
 npm run db:seed
 ```
+
+## Production Run
+
+The production app is a Vite static build served by a small Node server. The same server handles `/api/*` and `/api/health`.
+
+```bash
+npm run build
+PORT=5174 HOST=127.0.0.1 npm run start
+curl http://127.0.0.1:5174/api/health
+```
+
+Deployment environment variables:
+
+- `DATABASE_URL`: hosted Postgres connection string.
+- `GROQ_API_KEY`: server-only Groq key for AI analysis.
+- `NVIDIA_API_KEY`: optional NVIDIA API fallback key.
+- `AI_ANALYSIS_PROVIDER`: `groq` or `nvidia`.
+- `PORT`: set by most hosts automatically.
+
+Never commit `.env`. The file is intentionally ignored by Git.
+
+## Deploy
+
+Recommended current setup:
+
+- Web/API service: Render, Railway, Fly.io, or another Node host.
+- Database: Neon Postgres 16.
+- Build command: `npm ci && npm run db:generate && npm run build`.
+- Start command: `npm run start`.
+- Health check path: `/api/health`.
+
+This repo includes `render.yaml` and `Dockerfile` as deployment starting points.
 
 ## Project Structure
 

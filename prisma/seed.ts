@@ -1,8 +1,42 @@
-import { PrismaClient } from '../src/generated/prisma/client';
+import {
+	acts,
+	billActions,
+	bills,
+	committees,
+	questions,
+	sittingDays,
+	timelineEvents
+} from '../src/lib/data/seed';
+import { createPrismaClient } from '../src/lib/server/db/prisma';
 
-const prisma = new PrismaClient();
-
+const prisma = createPrismaClient();
 const date = (value: string) => new Date(`${value}T00:00:00+05:30`);
+
+function toPrismaEnum(value: string): string {
+	return value.replaceAll('-', '_').toUpperCase();
+}
+
+async function createManyInChunks<T>(
+	label: string,
+	items: T[],
+	createMany: (data: T[]) => Promise<unknown>,
+	chunkSize = 500
+) {
+	for (let index = 0; index < items.length; index += chunkSize) {
+		await createMany(items.slice(index, index + chunkSize));
+	}
+	console.log(`Seeded ${items.length} ${label}.`);
+}
+
+function uniqueBy<T>(items: T[], keyFor: (item: T) => string): T[] {
+	const seen = new Set<string>();
+	return items.filter((item) => {
+		const key = keyFor(item);
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+}
 
 async function main() {
 	await prisma.timelineEvent.deleteMany();
@@ -13,133 +47,123 @@ async function main() {
 	await prisma.sittingDay.deleteMany();
 	await prisma.bill.deleteMany();
 
-	await prisma.bill.createMany({
-		data: [
-			{
-				id: 'bz-bill-public-health-2026',
-				title_en: 'Demo Public Health Preparedness Bill, 2026',
-				title_hi: 'डेमो लोक स्वास्थ्य तैयारी विधेयक, 2026',
-				bill_number: 'Demo Bill No. 18 of 2026',
-				bill_year: 2026,
-				bill_type: 'ORDINARY',
-				origin_house: 'LOK_SABHA',
-				current_stage: 'REFERRED_COMMITTEE',
-				ministry: 'Ministry of Health and Family Welfare',
-				introduced_on: date('2026-07-18'),
-				latest_action_date: date('2026-07-20'),
-				source_url: 'https://sansad.in/ls/legislation/bills',
-				summary: 'Demo ordinary Bill for the first BharatZero prototype.',
-				is_demo_seed: true
-			},
-			{
-				id: 'bz-bill-digital-services-2026',
-				title_en: 'Demo Digital Public Services Accountability Bill, 2026',
-				title_hi: 'डेमो डिजिटल लोक सेवा जवाबदेही विधेयक, 2026',
-				bill_number: 'Demo Bill No. 22 of 2026',
-				bill_year: 2026,
-				bill_type: 'ORDINARY',
-				origin_house: 'RAJYA_SABHA',
-				current_stage: 'TRANSMITTED_TO_OTHER_HOUSE',
-				ministry: 'Ministry of Electronics and Information Technology',
-				introduced_on: date('2026-07-15'),
-				latest_action_date: date('2026-07-20'),
-				source_url: 'https://sansad.in/rs/legislation/bills',
-				summary: 'Demo Rajya Sabha-originating ordinary Bill fixture.',
-				is_demo_seed: true
-			},
-			{
-				id: 'bz-bill-appropriation-demo-2026',
-				title_en: 'Demo Appropriation Bill, 2026',
-				title_hi: 'डेमो विनियोग विधेयक, 2026',
-				bill_number: 'Demo Money Bill No. 4 of 2026',
-				bill_year: 2026,
-				bill_type: 'MONEY',
-				origin_house: 'LOK_SABHA',
-				current_stage: 'RAJYA_SABHA_RECOMMENDATION_PERIOD',
-				ministry: 'Ministry of Finance',
-				introduced_on: date('2026-07-19'),
-				latest_action_date: date('2026-07-20'),
-				source_url: 'https://sansad.in/ls/legislation/bills',
-				summary: 'Demo Money Bill fixture for Lok Sabha-origin path.',
-				is_demo_seed: true
-			}
-		]
-	});
+	const billIds = new Set(bills.map((bill) => bill.id));
 
-	await prisma.billAction.createMany({
-		data: [
-			{
-				id: 'act-public-health-committee',
-				bill_id: 'bz-bill-public-health-2026',
-				date: date('2026-07-20'),
-				house: 'LOK_SABHA',
-				action_type: 'bill_referred_committee',
-				description: 'Demo seed: referred to a department-related committee.',
-				source_url: 'https://sansad.in/ls/committees',
-				is_demo_seed: true
-			},
-			{
-				id: 'act-appropriation-rs-window',
-				bill_id: 'bz-bill-appropriation-demo-2026',
-				date: date('2026-07-20'),
-				house: 'RAJYA_SABHA',
-				action_type: 'money_bill_window',
-				description: 'Demo seed: Rajya Sabha recommendation period opened.',
-				source_url: 'https://sansad.in/rs/legislation/bills',
-				is_demo_seed: true
-			}
-		]
-	});
+	await createManyInChunks(
+		'bills',
+		bills.map((bill) => ({
+			id: bill.id,
+			title_en: bill.title_en,
+			title_hi: bill.title_hi,
+			bill_number: bill.bill_number,
+			bill_year: bill.bill_year,
+			bill_type: toPrismaEnum(bill.bill_type),
+			origin_house: toPrismaEnum(bill.origin_house),
+			current_stage: toPrismaEnum(bill.current_stage),
+			ministry: bill.ministry,
+			introduced_on: date(bill.introduced_on),
+			latest_action_date: date(bill.latest_action_date),
+			source_url: bill.source_url,
+			summary: bill.summary,
+			is_demo_seed: bill.isDemoSeed
+		})),
+		(data) => prisma.bill.createMany({ data })
+	);
 
-	await prisma.sittingDay.createMany({
-		data: [
-			{
-				id: 'sit-ls-2026-07-20',
-				date: date('2026-07-20'),
-				house: 'LOK_SABHA',
-				session_name: 'Demo Monsoon Session 2026',
-				status: 'DEMO',
-				is_demo_seed: true
-			},
-			{
-				id: 'sit-rs-2026-07-20',
-				date: date('2026-07-20'),
-				house: 'RAJYA_SABHA',
-				session_name: 'Demo Monsoon Session 2026',
-				status: 'DEMO',
-				is_demo_seed: true
-			}
-		]
-	});
+	await createManyInChunks(
+		'bill actions',
+		billActions
+			.filter((action) => billIds.has(action.bill_id))
+			.map((action) => ({
+				id: action.id,
+				bill_id: action.bill_id,
+				date: date(action.date),
+				house: toPrismaEnum(action.house),
+				action_type: action.action_type,
+				description: action.description,
+				source_url: action.source_url,
+				is_demo_seed: action.isDemoSeed
+			})),
+		(data) => prisma.billAction.createMany({ data })
+	);
 
-	await prisma.timelineEvent.createMany({
-		data: [
-			{
-				id: 'evt-health-committee-2026-07-20',
-				date: date('2026-07-20'),
-				house: 'LOK_SABHA',
-				type: 'BILL_REFERRED_COMMITTEE',
-				title: 'Health preparedness Bill referred',
-				description: 'Demo seed event linking an ordinary Bill to committee workflow.',
-				related_bill_id: 'bz-bill-public-health-2026',
-				source_url: 'https://sansad.in/ls/committees',
-				is_demo_seed: true
-			},
-			{
-				id: 'evt-money-bill-rs-2026-07-20',
-				date: date('2026-07-20'),
-				house: 'RAJYA_SABHA',
-				type: 'BILL_TRANSMITTED',
-				title: 'Money Bill recommendation window opened',
-				description: 'Demo seed event for Money Bill handling in Rajya Sabha.',
-				related_bill_id: 'bz-bill-appropriation-demo-2026',
-				source_url: 'https://sansad.in/rs',
-				is_demo_seed: true
-			}
-		]
-	});
+	await createManyInChunks(
+		'sitting days',
+		uniqueBy(sittingDays, (sittingDay) => `${sittingDay.date}:${sittingDay.house}`).map(
+			(sittingDay) => ({
+				id: sittingDay.id,
+				date: date(sittingDay.date),
+				house: toPrismaEnum(sittingDay.house),
+				session_name: sittingDay.session_name,
+				status: toPrismaEnum(sittingDay.status),
+				is_demo_seed: sittingDay.isDemoSeed
+			})
+		),
+		(data) => prisma.sittingDay.createMany({ data })
+	);
 
-	console.log('Seeded BharatZero demo data. This is not official live Parliament data.');
+	await createManyInChunks(
+		'timeline events',
+		timelineEvents.map((event) => ({
+			id: event.id,
+			date: date(event.date),
+			house: toPrismaEnum(event.house),
+			type: toPrismaEnum(event.type),
+			title: event.title,
+			description: event.description,
+			related_bill_id: event.related_bill_id && billIds.has(event.related_bill_id) ? event.related_bill_id : null,
+			source_url: event.source_url,
+			is_demo_seed: event.isDemoSeed
+		})),
+		(data) => prisma.timelineEvent.createMany({ data })
+	);
+
+	await createManyInChunks(
+		'committees',
+		committees.map((committee) => ({
+			id: committee.id,
+			name: committee.name,
+			house: toPrismaEnum(committee.house),
+			type: toPrismaEnum(committee.type),
+			source_url: committee.source_url,
+			is_demo_seed: committee.isDemoSeed
+		})),
+		(data) => prisma.committee.createMany({ data })
+	);
+
+	await createManyInChunks(
+		'questions',
+		questions.map((question) => ({
+			id: question.id,
+			number: question.number,
+			house: toPrismaEnum(question.house),
+			date: date(question.date),
+			ministry: question.ministry,
+			subject: question.subject,
+			answer_status: toPrismaEnum(question.answer_status),
+			source_url: question.source_url,
+			is_demo_seed: question.isDemoSeed
+		})),
+		(data) => prisma.question.createMany({ data })
+	);
+
+	await createManyInChunks(
+		'acts',
+		acts
+			.filter((act) => billIds.has(act.linked_bill_id))
+			.map((act) => ({
+				id: act.id,
+				title: act.title,
+				act_number: act.act_number,
+				year: act.year,
+				linked_bill_id: act.linked_bill_id,
+				india_code_url: act.india_code_url,
+				is_demo_seed: act.isDemoSeed
+			})),
+		(data) => prisma.act.createMany({ data })
+	);
+
+	console.log('BharatZero database seed complete.');
 }
 
 main()

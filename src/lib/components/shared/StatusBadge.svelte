@@ -7,15 +7,16 @@
 
 	const toneClass = $derived(
 		{
-			neutral: 'border-slate-700 bg-slate-900/80 text-slate-300',
-			active: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200',
-			warning: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-			success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
-			danger: 'border-rose-500/30 bg-rose-500/10 text-rose-200'
+			neutral: 'border-[var(--bz-border)] bg-[var(--bz-surface-2)] text-[var(--bz-text-2)] [--dot:#94a3b8]',
+			active: 'border-blue-200 bg-blue-50 text-blue-800 [--dot:#3b82f6]',
+			warning: 'border-amber-200 bg-amber-50 text-amber-800 [--dot:#d97706]',
+			success: 'border-emerald-200 bg-emerald-50 text-emerald-800 [--dot:#10b981]',
+			danger: 'border-rose-200 bg-rose-50 text-rose-800 [--dot:#ef4444]'
 		}[getStageTone(stage)]
 	);
 </script>
 
-<span class={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${toneClass}`}>
+<span class={`inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 text-[10.5px] font-semibold ${toneClass}`}>
+	<span class="h-1.5 w-1.5 rounded-full bg-[var(--dot)]"></span>
 	{stageLabelsLocalized[language][stage]}
 </span>

@@ -65,7 +65,7 @@ const allHouseRail = buildTimelineDateRail({
 
 assert.deepEqual(
 	allHouseRail.map((day) => day.date),
-	['2026-07-19', '2026-07-20', '2026-07-21']
+	['2026-07-21', '2026-07-20', '2026-07-19']
 );
 assert.equal(allHouseRail[1]?.selected, true);
 assert.equal(allHouseRail[1]?.eventCount, 2);
@@ -82,15 +82,15 @@ const lokSabhaRail = buildTimelineDateRail({
 });
 assert.deepEqual(
 	lokSabhaRail.map((day) => `${day.date}:${day.eventCount}:${day.sittingCount}`),
-	['2026-07-19:0:1', '2026-07-20:1:0', '2026-07-21:1:0']
+	['2026-07-21:1:0', '2026-07-20:1:0', '2026-07-19:0:1']
 );
 assert.equal(lokSabhaRail[1]?.href, '/?section=timeline&house=lok-sabha&date=2026-07-20&lang=en');
 
 const groups = groupTimelineEventsByDate(events);
 assert.deepEqual(
 	groups.map((group) => `${group.date}:${group.events.length}`),
-	['2026-07-20:2', '2026-07-21:1']
+	['2026-07-21:1', '2026-07-20:2']
 );
-assert.equal(groups[0]?.events[0]?.id, 'evt-ls-2026-07-20');
+assert.equal(groups[0]?.events[0]?.id, 'evt-ls-2026-07-21');
 
 console.log('Timeline view contract checks passed.');

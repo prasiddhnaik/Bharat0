@@ -10,7 +10,7 @@
 	<title>BharatZero</title>
 	<meta
 		name="description"
-		content="Demo prototype for an India-specific civic legislative explorer with timeline, Bills, committees, questions, debates, Acts, and source readiness."
+		content="Sandbox prototype for an India-specific civic legislative explorer with timeline, Bills, committees, questions, debates, Acts, and official source links."
 	/>
 </svelte:head>
 

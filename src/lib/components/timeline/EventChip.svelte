@@ -5,9 +5,9 @@
 	let { event }: { event: TimelineEvent } = $props();
 </script>
 
-<div class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[11px] text-slate-300 shadow-inner shadow-black/20">
-	<span class="h-1.5 w-1.5 rounded-full bg-cyan-300"></span>
+<div class="inline-flex items-center gap-2 rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1 text-[10.5px] text-[var(--bz-text-2)]">
+	<span class="h-1.5 w-1.5 rounded-full bg-[var(--bz-accent)]"></span>
 	<span>{houseLabels[event.house]}</span>
-	<span class="text-slate-600">/</span>
-	<span class="uppercase tracking-[0.16em] text-slate-500">{event.type.replaceAll('_', ' ')}</span>
+	<span class="text-[var(--bz-text-3)]">/</span>
+	<span class="uppercase tracking-[0.07em] text-[var(--bz-text-3)]">{event.type.replaceAll('_', ' ')}</span>
 </div>

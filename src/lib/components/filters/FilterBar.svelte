@@ -25,31 +25,31 @@
 	const stageOptions = [...ORDINARY_BILL_STAGES, ...MONEY_BILL_STAGES];
 </script>
 
-<form class="grid max-w-full gap-3 overflow-hidden rounded-[1.35rem] border border-slate-800/90 bg-slate-950/70 p-3 shadow-xl shadow-black/20 backdrop-blur md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(11rem,13rem)_minmax(12rem,15rem)_minmax(12rem,16rem)]" action="/" method="GET">
+<form class="bz-panel grid max-w-full gap-3 overflow-hidden rounded-lg p-3 md:grid-cols-2 2xl:grid-cols-[minmax(16rem,1fr)_minmax(12rem,13rem)_minmax(10rem,12rem)_minmax(14rem,16rem)]" action="/" method="GET">
 	<input type="hidden" name="section" value={section} />
 	<input type="hidden" name="lang" value={language} />
-	<label class="grid min-w-0 gap-1 text-xs font-medium text-slate-400">
+	<label class="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 		{t('field.search', language)}
 		<input
 			name="q"
 			value={query}
 			placeholder={t('label.searchPlaceholder', language)}
-			class="min-h-11 min-w-0 rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/15"
+			class="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none placeholder:text-[var(--bz-text-3)] focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10"
 		/>
 	</label>
 	<HouseSwitcher selected={house} {language} />
 	<SessionPicker {date} {sessionName} {language} />
-	<label class="grid min-w-0 gap-1 text-xs font-medium text-slate-400">
+	<label class="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 		{t('field.billStage', language)}
-		<select name="status" class="min-h-11 min-w-0 rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/15">
+		<select name="status" class="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
 			<option value="all" selected={status === 'all'}>{t('field.allStages', language)}</option>
 			{#each stageOptions as stage}
 				<option value={stage} selected={status === stage}>{stageLabelsLocalized[language][stage]}</option>
 			{/each}
 		</select>
 	</label>
-	<div class="flex min-w-0 justify-end md:col-span-2 xl:col-span-4">
-		<button class="min-h-11 w-full rounded-xl bg-cyan-400 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 sm:w-auto" type="submit">
+	<div class="flex min-w-0 justify-end md:col-span-2 2xl:col-span-4">
+		<button class="min-h-9 w-full rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.07em] text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/25 sm:w-auto" type="submit">
 			{t('action.applyFilters', language)}
 		</button>
 	</div>
