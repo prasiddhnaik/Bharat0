@@ -29,7 +29,7 @@ import {
 	type TimelineEvent
 } from '$lib/domain/types';
 import { DEFAULT_BILLS_PAGE_SIZE, parseDashboardFilters, type DashboardFilters } from '$lib/domain/dashboard-filters';
-import { getActPartyPositions, type PartyPositionSide } from '$lib/domain/party-positions';
+import { getActPartyPositionSourceRefs, getActPartyPositions, type PartyPositionSide } from '$lib/domain/party-positions';
 import { parliamentHouseSnapshots, type ParliamentHouseSnapshot } from '$lib/domain/parliament-houses';
 import { getPrimeMinisterTerm, getPrimeMinisterTermLabel, PRIME_MINISTER_TERMS } from '$lib/domain/prime-ministers';
 import type { TimelineDateGroup, TimelineDateRailItem } from '$lib/domain/timeline-view';
@@ -439,6 +439,7 @@ function MainContent({
 		'future-adapter': 'This official source is identified, but the connector is scheduled for later.'
 	};
 	const sourcePipelineLabels = ['Find official record', 'Clean and match fields', 'Place on bill timeline', 'Show in BharatZero'];
+	const actPositionSources = getActPartyPositionSourceRefs();
 	const actBillsById = useMemo(() => new Map((dashboard.actBills ?? dashboard.allBills ?? []).map((bill) => [bill.id, bill])), [dashboard.actBills, dashboard.allBills]);
 
 	return (
@@ -543,7 +544,7 @@ function MainContent({
 			)}
 
 			{filters.section === 'sources' && (
-				<>
+				<div className="space-y-3">
 					<section className="bz-panel rounded-lg p-5">
 						<p className="bz-eyebrow text-[var(--bz-accent)]">Official sources</p>
 						<h2 className="mt-2 text-xl font-semibold text-[var(--bz-text-1)]">Where BharatZero will link each record</h2>
@@ -589,7 +590,28 @@ function MainContent({
 							</article>
 						))}
 					</section>
-				</>
+					<section className="bz-panel rounded-lg p-5">
+						<p className="bz-eyebrow text-[var(--bz-accent)]">Act position evidence</p>
+						<h2 className="mt-2 text-xl font-semibold text-[var(--bz-text-1)]">Sources for party-position notes</h2>
+						<p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bz-text-2)]">
+							These references support the sourced party-position read shown on selected Act detail panels. Press coverage is separated from official source families so the evidence type stays clear.
+						</p>
+						<div className="mt-4 grid gap-3 md:grid-cols-3">
+							{actPositionSources.map((source) => (
+								<article className="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3" key={source.url}>
+									<div className="flex flex-wrap items-center justify-between gap-2">
+										<h3 className="text-sm font-semibold text-[var(--bz-text-1)]">{source.label}</h3>
+										<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface)] px-1.5 py-0.5 text-[10px] font-semibold capitalize text-[var(--bz-text-2)]">{source.type.replace('-', ' ')}</span>
+									</div>
+									<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{source.usedFor}</p>
+									<a className="mt-3 inline-flex rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2 py-1 text-[10.5px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus" href={source.url} target="_blank" rel="noreferrer">
+										Open source
+									</a>
+								</article>
+							))}
+						</div>
+					</section>
+				</div>
 			)}
 		</>
 	);

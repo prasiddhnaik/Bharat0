@@ -16,6 +16,34 @@ export type ActPartyPositionSummary = {
 	positions: PartyPosition[];
 };
 
+export type ActPartyPositionSourceRef = {
+	label: string;
+	url: string;
+	type: 'official' | 'public-broadcast' | 'press';
+	usedFor: string;
+};
+
+const actPartyPositionSourceRefs: ActPartyPositionSourceRef[] = [
+	{
+		label: 'PIB',
+		url: 'https://www.pib.gov.in/PressReleaseIframePage.aspx?PRID=2115556',
+		type: 'official',
+		usedFor: 'Government support rationale for the Tribhuvan Sahkari University Act party-position note.'
+	},
+	{
+		label: 'Indian Express',
+		url: 'https://indianexpress.com/article/india/tribhuvandas-laid-foundation-of-amul-says-ait-shah-kurien-shaped-it-says-opposition-9908188/',
+		type: 'press',
+		usedFor: 'Opposition debate coverage for Congress, IRMA autonomy, corporatisation, and Verghese Kurien naming objections.'
+	},
+	{
+		label: 'Newsonair',
+		url: 'https://www.newsonair.gov.in/parliament-passes-tribhuvan-sahkari-university-bill-2025-to-establish-institute-of-rural-management/',
+		type: 'public-broadcast',
+		usedFor: 'Parliament passage context, voice-vote note, and BJD/AAP/YSRCP debate-position coverage.'
+	}
+];
+
 const actPartyPositionsByActId: Record<string, ActPartyPositionSummary> = {
 	'tribhuvan-sahkari-university-act-2025': {
 		status: 'captured',
@@ -52,6 +80,10 @@ const actPartyPositionsByActId: Record<string, ActPartyPositionSummary> = {
 		]
 	}
 };
+
+export function getActPartyPositionSourceRefs(): ActPartyPositionSourceRef[] {
+	return actPartyPositionSourceRefs;
+}
 
 export function getActPartyPositions(act: Pick<Act, 'id'>, linkedBill?: Pick<Bill, 'ministry' | 'current_stage'> | null): ActPartyPositionSummary {
 	const captured = actPartyPositionsByActId[act.id];

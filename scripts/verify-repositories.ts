@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createLegislativeRepository } from '../src/lib/server/repositories/legislative';
-import { getActPartyPositions } from '../src/lib/domain/party-positions';
+import { getActPartyPositionSourceRefs, getActPartyPositions } from '../src/lib/domain/party-positions';
 
 const repository = createLegislativeRepository({ mode: 'seed' });
 
@@ -73,5 +73,9 @@ assert.ok(tribhuvanPositions.voteNote.includes('voice vote'), 'expected vote evi
 assert.ok(tribhuvanPositions.positions.some((position) => position.side === 'supported' && position.party.includes('BJP')), 'expected BJP/NDA support position');
 assert.ok(tribhuvanPositions.positions.some((position) => position.side === 'opposed' && position.party.includes('Congress')), 'expected Congress objection position');
 assert.ok(tribhuvanPositions.positions.some((position) => position.side === 'opposed' && position.party.includes('BJD')), 'expected BJD objection position');
+const actPositionSources = getActPartyPositionSourceRefs();
+assert.ok(actPositionSources.some((source) => source.label === 'PIB' && source.url.includes('pib.gov.in')), 'expected PIB source on Act position Sources tab');
+assert.ok(actPositionSources.some((source) => source.label === 'Indian Express' && source.url.includes('indianexpress.com')), 'expected Indian Express source on Act position Sources tab');
+assert.ok(actPositionSources.some((source) => source.label === 'Newsonair' && source.url.includes('newsonair.gov.in')), 'expected Newsonair source on Act position Sources tab');
 
 console.log('Repository contract checks passed using seed-backed data access.');
