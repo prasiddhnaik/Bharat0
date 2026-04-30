@@ -89,6 +89,12 @@ PORT=5174 HOST=127.0.0.1 npm run start
 curl http://127.0.0.1:5174/api/health
 ```
 
+Run the full local production smoke check before shipping:
+
+```bash
+npm run verify:production
+```
+
 Deployment environment variables:
 
 - `DATABASE_URL`: hosted Postgres connection string.
@@ -106,10 +112,25 @@ Recommended current setup:
 - Web/API service: Render, Railway, Fly.io, or another Node host.
 - Database: Neon Postgres 16.
 - Build command: `npm ci && npm run db:generate && npm run build`.
+- Pre-deploy command: `npm run db:push`.
 - Start command: `npm run start`.
 - Health check path: `/api/health`.
 
-This repo includes `render.yaml` and `Dockerfile` as deployment starting points.
+This repo includes `render.yaml`, `Dockerfile`, and `.env.production.example` as deployment starting points. On Render, create a Blueprint from `render.yaml`, set `DATABASE_URL` to the Neon connection string, and add AI provider keys only when analysis should be enabled.
+
+Before the first deploy, make sure the production database has data:
+
+```bash
+DATABASE_URL="postgresql://..." npm run db:deploy
+DATABASE_URL="postgresql://..." npm run db:seed
+DATABASE_URL="postgresql://..." npm run verify:db
+```
+
+After deploy, verify the service:
+
+```bash
+curl https://YOUR-SERVICE.example.com/api/health
+```
 
 ## Project Structure
 
