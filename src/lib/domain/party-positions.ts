@@ -16,6 +16,8 @@ export type ActPartyPositionSummary = {
 	positions: PartyPosition[];
 };
 
+export type BillPartyPositionSummary = ActPartyPositionSummary;
+
 export type ActPartyPositionSourceRef = {
 	label: string;
 	url: string;
@@ -81,6 +83,24 @@ const actPartyPositionsByActId: Record<string, ActPartyPositionSummary> = {
 	}
 };
 
+const billPartyPositionsByBillId: Record<string, BillPartyPositionSummary> = {
+	'tribhuvan-sahkari-university-bill-2025': {
+		status: 'captured',
+		voteNote: 'Passed by voice vote; this is a debate-position read, not a recorded party-wise division.',
+		positions: actPartyPositionsByActId['tribhuvan-sahkari-university-act-2025'].positions
+	},
+	'tribhuvan-sahkari-university-bill-2025-15': {
+		status: 'captured',
+		voteNote: 'Passed by voice vote; this is a debate-position read, not a recorded party-wise division.',
+		positions: actPartyPositionsByActId['tribhuvan-sahkari-university-act-2025'].positions
+	},
+	'tribhuvan-sahkari-university-bill-2025-15-2': {
+		status: 'captured',
+		voteNote: 'Passed by voice vote; this is a debate-position read, not a recorded party-wise division.',
+		positions: actPartyPositionsByActId['tribhuvan-sahkari-university-act-2025'].positions
+	}
+};
+
 export function getActPartyPositionSourceRefs(): ActPartyPositionSourceRef[] {
 	return actPartyPositionSourceRefs;
 }
@@ -98,6 +118,26 @@ export function getActPartyPositions(act: Pick<Act, 'id'>, linkedBill?: Pick<Bil
 				side: 'supported',
 				party: 'Government / treasury benches',
 				reason: `Likely supported passage because the Bill was sponsored through ${ministry}, but BharatZero has not captured party speeches or division data for this Act yet.`,
+				evidence: 'Derived only from sponsorship metadata; needs debate transcript or division record before naming supporting and opposing parties.',
+				sourceUrl: ''
+			}
+		]
+	};
+}
+
+export function getBillPartyPositions(bill: Pick<Bill, 'id' | 'ministry'>): BillPartyPositionSummary {
+	const captured = billPartyPositionsByBillId[bill.id];
+	if (captured) return captured;
+
+	const ministry = bill.ministry.replace(/^Ministry of\s+/i, '') || 'the sponsoring ministry';
+	return {
+		status: 'not-captured',
+		voteNote: 'No party-wise vote or debate-position record is captured for this Bill yet.',
+		positions: [
+			{
+				side: 'supported',
+				party: 'Government / treasury benches',
+				reason: `Likely supported introduction and passage because the Bill was sponsored through ${ministry}, but BharatZero has not captured party speeches or division data for this Bill yet.`,
 				evidence: 'Derived only from sponsorship metadata; needs debate transcript or division record before naming supporting and opposing parties.',
 				sourceUrl: ''
 			}

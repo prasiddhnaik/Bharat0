@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createLegislativeRepository } from '../src/lib/server/repositories/legislative';
-import { getActPartyPositionSourceRefs, getActPartyPositions } from '../src/lib/domain/party-positions';
+import { getActPartyPositionSourceRefs, getActPartyPositions, getBillPartyPositions } from '../src/lib/domain/party-positions';
 
 const repository = createLegislativeRepository({ mode: 'seed' });
 
@@ -77,5 +77,13 @@ const actPositionSources = getActPartyPositionSourceRefs();
 assert.ok(actPositionSources.some((source) => source.label === 'PIB' && source.url.includes('pib.gov.in')), 'expected PIB source on Act position Sources tab');
 assert.ok(actPositionSources.some((source) => source.label === 'Indian Express' && source.url.includes('indianexpress.com')), 'expected Indian Express source on Act position Sources tab');
 assert.ok(actPositionSources.some((source) => source.label === 'Newsonair' && source.url.includes('newsonair.gov.in')), 'expected Newsonair source on Act position Sources tab');
+
+const tribhuvanBillDetail = await repository.getBillDetail('tribhuvan-sahkari-university-bill-2025');
+assert.ok(tribhuvanBillDetail, 'expected known Tribhuvan Bill detail');
+const tribhuvanBillPositions = getBillPartyPositions(tribhuvanBillDetail.bill);
+assert.equal(tribhuvanBillPositions.status, 'captured');
+assert.ok(tribhuvanBillPositions.voteNote.includes('voice vote'), 'expected vote evidence note for Bill party position read');
+assert.ok(tribhuvanBillPositions.positions.some((position) => position.side === 'supported' && position.party.includes('BJP')), 'expected BJP/NDA support position for Bill');
+assert.ok(tribhuvanBillPositions.positions.some((position) => position.side === 'opposed' && position.party.includes('Congress')), 'expected Congress objection position for Bill');
 
 console.log('Repository contract checks passed using seed-backed data access.');

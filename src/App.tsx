@@ -29,7 +29,7 @@ import {
 	type TimelineEvent
 } from '$lib/domain/types';
 import { DEFAULT_BILLS_PAGE_SIZE, parseDashboardFilters, type DashboardFilters } from '$lib/domain/dashboard-filters';
-import { getActPartyPositionSourceRefs, getActPartyPositions, type PartyPositionSide } from '$lib/domain/party-positions';
+import { getActPartyPositionSourceRefs, getActPartyPositions, getBillPartyPositions, type PartyPositionSide } from '$lib/domain/party-positions';
 import { parliamentHouseSnapshots, type ParliamentHouseSnapshot } from '$lib/domain/parliament-houses';
 import { getPrimeMinisterTerm, getPrimeMinisterTermLabel, PRIME_MINISTER_TERMS } from '$lib/domain/prime-ministers';
 import type { TimelineDateGroup, TimelineDateRailItem } from '$lib/domain/timeline-view';
@@ -2214,6 +2214,7 @@ function BillDetailPanel({
 
 	const billAnalysis = analysis ?? buildBillAnalysis(bill, actions, language);
 	const introducedBy = getIntroducedByDisplay(bill);
+	const partyPositions = getBillPartyPositions(bill);
 
 	return (
 		<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
@@ -2240,6 +2241,35 @@ function BillDetailPanel({
 					<AnalysisNote label="Current read" value={billAnalysis.stageExplanation} />
 					<AnalysisNote label="Movement so far" value={billAnalysis.movementSummary} />
 					<AnalysisNote label="Data quality" value={billAnalysis.dataQuality} />
+				</div>
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+					<div className="flex flex-wrap items-start justify-between gap-2">
+						<div>
+							<p className="bz-eyebrow text-[0.55rem]">Party positions</p>
+							<p className="mt-2 text-[12px] leading-5 text-[var(--bz-text-2)]">{partyPositions.voteNote}</p>
+						</div>
+						<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--bz-text-2)]">
+							{partyPositions.status === 'captured' ? 'Sourced' : 'Needs transcript'}
+						</span>
+					</div>
+					<div className="mt-3 grid gap-2">
+						{partyPositions.positions.map((position) => (
+							<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] p-2.5" key={`${position.party}-${position.side}`}>
+								<div className="flex flex-wrap items-center gap-2">
+									<PartyPositionBadge side={position.side} />
+									<p className="text-[12px] font-semibold leading-5 text-[var(--bz-text-1)]">{position.party}</p>
+								</div>
+								<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{position.reason}</p>
+								{position.sourceUrl ? (
+									<a className="mt-2 inline-flex text-[11px] font-semibold text-[var(--bz-accent)] transition hover:text-[var(--bz-accent-2)] bz-focus" href={position.sourceUrl} target="_blank" rel="noreferrer">
+										{position.evidence}
+									</a>
+								) : (
+									<p className="mt-2 text-[11px] leading-5 text-[var(--bz-text-3)]">{position.evidence}</p>
+								)}
+							</div>
+						))}
+					</div>
 				</div>
 				<dl className="mt-5 grid grid-cols-2 gap-2 text-xs">
 					<DetailTerm label={t('field.originHouse', language)} value={houseLabelsLocalized[language][bill.origin_house]} />
