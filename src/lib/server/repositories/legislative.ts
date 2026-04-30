@@ -338,7 +338,8 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				stageCountRows,
 				areaCountRows,
 				primeMinisterCounts,
-				filteredActsTracked
+				filteredActsTracked,
+				totalBillsTracked
 				] = await Promise.all([
 					shouldFetchBills ? prisma.bill.findMany(billFindArgs) : Promise.resolve([]),
 					needsTimeline ? prisma.timelineEvent.findMany(timelineFindArgs) : Promise.resolve([]),
@@ -365,7 +366,8 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 						return { id: term.id, count };
 					})
 				),
-				needsActs ? prisma.act.count({ where: actWhere }) : Promise.resolve(0)
+				needsActs ? prisma.act.count({ where: actWhere }) : Promise.resolve(0),
+				prisma.bill.count()
 			]);
 
 			const query = filters.query.trim().toLowerCase();
@@ -394,7 +396,8 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 					seedMeta: repositorySeedMeta,
 					filters,
 					stats: {
-						billsTracked: filteredBillsTracked,
+						billsTracked: totalBillsTracked,
+						filteredBillsTracked,
 						eventsOnDate: timelineEvents.length,
 						committeesTracked: committees.length,
 						preparedSources: repositorySources.length

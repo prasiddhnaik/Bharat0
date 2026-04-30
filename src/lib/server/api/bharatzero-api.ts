@@ -201,6 +201,21 @@ async function getBillDetailResponse(billId: string) {
 	return detail;
 }
 
+async function handleHealth(response: ServerResponse) {
+	try {
+		const [billCount, analysisCount] = await Promise.all([getPrismaClient().bill.count(), getPrismaClient().aiBillAnalysis.count()]);
+		sendJson(response, 200, {
+			ok: true,
+			database: 'connected',
+			bills: billCount,
+			aiAnalyses: analysisCount
+		});
+	} catch (error) {
+		console.error(error);
+		sendJson(response, 503, { ok: false, database: 'unavailable' });
+	}
+}
+
 export async function handleBharatZeroApi(request: IncomingMessage, response: ServerResponse) {
 	if (!request.url) {
 		sendError(response, 400, 'Missing request URL.');
@@ -212,6 +227,11 @@ export async function handleBharatZeroApi(request: IncomingMessage, response: Se
 
 		if (request.method !== 'GET') {
 			sendError(response, 405, 'Method not allowed.');
+			return;
+		}
+
+		if (url.pathname === '/api/health') {
+			await handleHealth(response);
 			return;
 		}
 

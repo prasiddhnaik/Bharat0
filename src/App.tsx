@@ -223,6 +223,7 @@ function createEmptyDashboard(filters: DashboardFilters): AppDashboardData {
 		filters,
 		stats: {
 			billsTracked: 0,
+			filteredBillsTracked: 0,
 			eventsOnDate: 0,
 			committeesTracked: 0,
 			preparedSources: 0

@@ -142,7 +142,8 @@ export function getDashboardData(filters: DashboardFilters) {
 		seedMeta,
 		filters,
 		stats: {
-			billsTracked: filteredBills.length,
+			billsTracked: bills.length,
+			filteredBillsTracked: filteredBills.length,
 			eventsOnDate: filteredEvents.length,
 			committeesTracked: committees.length,
 			preparedSources: sources.length
