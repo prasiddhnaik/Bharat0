@@ -160,4 +160,21 @@ assert.equal(actsDashboard.acts[0]?.id, 'official-act-1');
 assert.equal(actsDashboard.pagination.totalItems, 1);
 assert.equal(actsDashboard.pagination.totalPages, 1);
 
+const debatesDashboard = await repository.getDashboardData({
+	section: 'debates',
+	house: 'all',
+	date: '2026-07-20',
+	status: 'all',
+	area: 'all',
+	source: 'all',
+	primeMinister: 'all',
+	query: 'tribhuvan',
+	language: 'en',
+	page: 1,
+	pageSize: 10
+});
+
+assert.ok(debatesDashboard.debates.length >= 1, 'expected Prisma repository to expose curated debate records');
+assert.ok(debatesDashboard.debates.some((debate) => debate.title.includes('Tribhuvan Sahkari University Bill')), 'expected debate query to match curated Tribhuvan debate');
+
 console.log('Prisma repository contract checks passed using a fake Prisma client.');

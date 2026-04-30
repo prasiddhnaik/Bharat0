@@ -521,20 +521,24 @@ function MainContent({
 			)}
 
 			{filters.section === 'debates' && (
-				<section className="space-y-3">
-					{dashboard.debates.map((debate) => (
-						<article className="bz-panel rounded-lg p-4" key={debate.id}>
-							<p className="bz-eyebrow">
-								{houseLabelsLocalized[filters.language][debate.house]} · {formatDate(debate.date)}
-							</p>
-							<h2 className="mt-2 text-base font-semibold text-[var(--bz-text-1)]">{debate.title}</h2>
-							<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">{debate.summary}</p>
-							<div className="mt-4">
-								<SourceBadge url={debate.source_url} isDemoSeed={debate.isDemoSeed} />
-							</div>
-						</article>
-					))}
-				</section>
+				dashboard.debates.length ? (
+					<section className="space-y-3">
+						{dashboard.debates.map((debate) => (
+							<article className="bz-panel rounded-lg p-4" key={debate.id}>
+								<p className="bz-eyebrow">
+									{houseLabelsLocalized[filters.language][debate.house]} · {formatDate(debate.date)}
+								</p>
+								<h2 className="mt-2 text-base font-semibold text-[var(--bz-text-1)]">{debate.title}</h2>
+								<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">{debate.summary}</p>
+								<div className="mt-4">
+									<SourceBadge url={debate.source_url} isDemoSeed={debate.isDemoSeed} />
+								</div>
+							</article>
+						))}
+					</section>
+				) : (
+					<EmptyState title="No debates match these filters" message="Change the search, House, or source filter to broaden the debate proceedings." />
+				)
 			)}
 
 			{filters.section === 'acts' && (

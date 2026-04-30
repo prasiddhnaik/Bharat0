@@ -20,7 +20,7 @@ import {
 } from '$lib/ingestion/source-adapters';
 import { buildTimelineDateRail, groupTimelineEventsByDate } from '$lib/domain/timeline-view';
 import { getPrimeMinisterTermDateRange, PRIME_MINISTER_TERMS, type PrimeMinisterFilter } from '$lib/domain/prime-ministers';
-import { getSourceUrlPatternsForFilter } from '$lib/domain/source-filters';
+import { getSourceUrlPatternsForFilter, matchesSourceUrl } from '$lib/domain/source-filters';
 
 export type RepositoryMode = 'seed' | 'prisma';
 
@@ -129,7 +129,44 @@ const repositorySources: SourceEntry[] = [
 	}
 ];
 
-const repositoryDebates: Debate[] = [];
+const repositoryDebates: Debate[] = [
+	{
+		id: 'debate-income-tax-bill-introduced',
+		house: 'lok-sabha',
+		date: '2025-02-13',
+		title: 'The Income-Tax Bill, 2025 - introduced',
+		summary: 'Parliament Digital Library records Government Bills proceedings for introduction of the Income-Tax Bill, 2025.',
+		source_url: 'https://eparlib.sansad.in/handle/123456789/2991966?view_type=search',
+		isDemoSeed: false
+	},
+	{
+		id: 'debate-dpdp-bill-introduced',
+		house: 'lok-sabha',
+		date: '2023-08-03',
+		title: 'The Digital Personal Data Protection Bill, 2023 - introduced',
+		summary: 'Parliament Digital Library records introduction proceedings for the Digital Personal Data Protection Bill, 2023.',
+		source_url: 'https://eparlib.sansad.in/handle/123456789/2505325?view_type=search',
+		isDemoSeed: false
+	},
+	{
+		id: 'debate-tribhuvan-bill-passed',
+		house: 'lok-sabha',
+		date: '2025-03-26',
+		title: 'Tribhuvan Sahkari University Bill, 2025 - passed',
+		summary: 'Parliament Digital Library records Lok Sabha proceedings for passage of the Tribhuvan Sahkari University Bill, 2025.',
+		source_url: 'https://eparlib.sansad.in/handle/123456789/2991119?view_type=search',
+		isDemoSeed: false
+	},
+	{
+		id: 'debate-aircraft-objects-bill-introduced',
+		house: 'rajya-sabha',
+		date: '2025-02-10',
+		title: 'Protection of Interests in Aircraft Objects Bill, 2025 - introduced',
+		summary: 'PRS bill text and bill tracker record introduction in Rajya Sabha on 10 February 2025.',
+		source_url: 'https://prsindia.org/billtrack/the-protection-of-interests-in-aircraft-objects-bill-2025',
+		isDemoSeed: false
+	}
+];
 
 function sourceUrlWhereForFilter(sourceFilter: string, fieldName = 'source_url') {
 	if (sourceFilter === 'all') return {};
@@ -232,6 +269,7 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 			const needsTimeline = filters.section === 'overview' || filters.section === 'timeline';
 			const needsCommittees = filters.section === 'committees';
 			const needsQuestions = filters.section === 'questions';
+			const needsDebates = filters.section === 'debates';
 			const needsActs = filters.section === 'acts';
 			const timelineNeedsBillLookup = needsTimeline && (filters.query.trim().length > 0 || filters.status !== 'all');
 			const shouldFetchBills = needsBills || timelineNeedsBillLookup;
@@ -386,6 +424,19 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 			});
 			const sittingDays = sittingDayRows.map(toDomainSittingDay);
 			const committees = committeeRows.map(toDomainCommittee);
+			const debates = needsDebates
+				? repositoryDebates
+						.filter((debate) => {
+							const matchesHouse = filters.house === 'all' || debate.house === filters.house;
+							const matchesSource = matchesSourceUrl(debate.source_url, filters.source);
+							const matchesQuery =
+								!query ||
+								debate.title.toLowerCase().includes(query) ||
+								debate.summary.toLowerCase().includes(query);
+							return matchesHouse && matchesSource && matchesQuery;
+						})
+						.sort((left, right) => right.date.localeCompare(left.date))
+				: [];
 			const acts = actRows.map(toDomainAct);
 			const actLinkedBillIds = [...new Set(acts.map((act) => act.linked_bill_id))];
 			const actBillRows = actLinkedBillIds.length > 0
@@ -428,7 +479,7 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 					sittingDays,
 					committees,
 					questions: questionRows.map(toDomainQuestion),
-					debates: repositoryDebates,
+					debates,
 					acts,
 					actBills: actBillRows.map(toDomainBill),
 					sources: repositorySources,
