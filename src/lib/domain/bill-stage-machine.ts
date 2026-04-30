@@ -2,6 +2,7 @@ import type { BillStage, BillType, House, SectionId, SourceKind } from './types'
 
 export const sectionLabels: Record<SectionId, string> = {
 	overview: 'Overview',
+	houses: 'Houses',
 	timeline: 'Timeline',
 	bills: 'Bills',
 	committees: 'Committees',
@@ -58,9 +59,10 @@ export const sourceKindLabels: Record<SourceKind, string> = {
 	'rajya-sabha': 'Rajya Sabha',
 	'india-code': 'India Code',
 	'data-gov': 'data.gov.in',
+	prs: 'PRS India',
 	egazette: 'eGazette',
 	neva: 'NeVA',
-	'demo-seed': 'Demo seed'
+	'demo-seed': 'Sandbox source'
 };
 
 export function getStageTone(stage: BillStage): 'neutral' | 'active' | 'warning' | 'success' | 'danger' {

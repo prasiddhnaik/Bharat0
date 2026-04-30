@@ -59,7 +59,7 @@ export function buildTimelineDateRail({
 		}
 	}
 
-	return [...dates].sort().map((date) => {
+	return [...dates].sort((left, right) => right.localeCompare(left)).map((date) => {
 		const eventCount = events.filter((event) => event.date === date && matchesHouse(house, event.house)).length;
 		const sittingCount = sittingDays.filter((sittingDay) => sittingDay.date === date && matchesHouse(house, sittingDay.house)).length;
 
@@ -83,9 +83,9 @@ export function groupTimelineEventsByDate(events: TimelineEvent[]): TimelineDate
 	}
 
 	return [...groups.entries()]
-		.sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+		.sort(([leftDate], [rightDate]) => rightDate.localeCompare(leftDate))
 		.map(([date, groupedEvents]) => ({
 			date,
-			events: groupedEvents
+			events: groupedEvents.sort((left, right) => right.date.localeCompare(left.date))
 		}));
 }

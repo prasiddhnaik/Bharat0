@@ -14,14 +14,14 @@ const dashboard = await repository.getDashboardData({
 
 assert.equal(dashboard.dataSource.mode, 'seed');
 assert.equal(dashboard.dataSource.isLiveOfficialData, false);
-assert.ok(dashboard.bills.length >= 3, 'expected seed-backed repository to return demo Bills');
+assert.ok(dashboard.bills.length >= 1000, 'expected generated Sansad Bill records');
 assert.ok(dashboard.timelineEvents.length >= 1, 'expected seed-backed repository to return timeline events');
 
-const detail = await repository.getBillDetail('bz-bill-public-health-2026');
-assert.ok(detail, 'expected known demo Bill detail');
+const detail = await repository.getBillDetail('finance-bill-2025');
+assert.ok(detail, 'expected known official Bill detail');
 assert.equal(detail.dataSource.mode, 'seed');
-assert.equal(detail.bill.isDemoSeed, true);
-assert.ok(detail.actions.length >= 1, 'expected Bill actions for known demo Bill');
+assert.equal(detail.bill.isDemoSeed, false);
+assert.ok(detail.actions.length >= 1, 'expected Bill actions for known official Bill');
 
 const missing = await repository.getBillDetail('missing-bill');
 assert.equal(missing, null);

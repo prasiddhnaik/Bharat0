@@ -6,13 +6,13 @@ assert.equal(parseLanguage('hi'), 'hi');
 assert.equal(parseLanguage('en'), 'en');
 assert.equal(parseLanguage('mr'), 'en');
 
-const publicHealthBill = bills.find((bill) => bill.id === 'bz-bill-public-health-2026');
-assert.ok(publicHealthBill, 'expected public health demo bill fixture');
+const incomeTaxBill = bills.find((bill) => bill.id === 'income-tax-bill-2025');
+assert.ok(incomeTaxBill, 'expected Income-Tax Bill fixture from official records');
 
-assert.equal(getBillTitle(publicHealthBill, 'en'), 'Demo Public Health Preparedness Bill, 2026');
-assert.equal(getBillTitle(publicHealthBill, 'hi'), 'डेमो लोक स्वास्थ्य तैयारी विधेयक, 2026');
+assert.equal(getBillTitle(incomeTaxBill, 'en'), 'Income-Tax Bill, 2025');
+assert.equal(getBillTitle(incomeTaxBill, 'hi'), 'आयकर विधेयक, 2025');
 assert.equal(t('section.bills', 'hi'), 'विधेयक');
-assert.equal(t('app.demoSeedOnly', 'en'), 'Demo seed data only');
+assert.equal(t('app.demoSeedOnly', 'en'), 'Official public records');
 assert.equal(t('missing.key', 'hi'), 'missing.key');
 
 console.log('Localization contract checks passed.');

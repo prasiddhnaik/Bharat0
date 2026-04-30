@@ -107,6 +107,8 @@ model Bill {
   actions            BillAction[]
   timeline_events    TimelineEvent[]
   acts               Act[]
+  ai_analyses        AiBillAnalysis[]
+  source_texts       BillSourceText[]
   created_at         DateTime        @default(now())
   updated_at         DateTime        @updatedAt
 
@@ -202,4 +204,42 @@ model Act {
 
   @@index([year])
   @@index([linked_bill_id])
+}
+
+model AiBillAnalysis {
+  id           String   @id @default(cuid())
+  bill_id      String
+  bill         Bill     @relation(fields: [bill_id], references: [id], onDelete: Cascade)
+  language     String
+  provider     String   @default("groq")
+  model        String
+  input_hash   String
+  analysis     Json
+  generated_at DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@unique([bill_id, language, provider, model, input_hash])
+  @@index([bill_id, language, provider])
+}
+
+model BillSourceText {
+  id           String   @id @default(cuid())
+  bill_id      String
+  bill         Bill     @relation(fields: [bill_id], references: [id], onDelete: Cascade)
+  source_url   String
+  resolved_url String?
+  content_type String?
+  byte_length  Int?
+  char_count   Int      @default(0)
+  text_hash    String?
+  text         String   @default("")
+  status       String   @default("extracted")
+  error        String?
+  extracted_at DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@unique([source_url])
+  @@index([bill_id])
+  @@index([text_hash])
+  @@index([status])
 }

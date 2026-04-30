@@ -32,6 +32,7 @@ type TranslationKey =
 	| 'label.futureAdapters'
 	| 'label.searchPlaceholder'
 	| 'section.overview'
+	| 'section.houses'
 	| 'section.timeline'
 	| 'section.bills'
 	| 'section.committees'
@@ -42,10 +43,10 @@ type TranslationKey =
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
 	en: {
-		'app.demoSeedOnly': 'Demo seed data only',
+		'app.demoSeedOnly': 'Official public records',
 		'app.title': 'Indian legislative intelligence, mapped as a timeline.',
 		'app.systemModel': 'System model',
-		'app.noScraping': 'No scraping, authentication, or payments in this MVP. Source adapters are prepared as future work.',
+		'app.noScraping': 'Public source links are shown for transparency. This local prototype does not collect sign-in, payment, or private browsing data.',
 		'app.parliamentModel': 'Parliament = President + Lok Sabha + Rajya Sabha.',
 		'app.stageMachineModel': 'Ordinary Bills and Money Bills use different stage machines.',
 		'app.firstClassSurfaces': 'Committees, questions, debates, Acts, and source links are first-class surfaces.',
@@ -63,13 +64,14 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
 		'field.introduced': 'Introduced',
 		'field.latestAction': 'Latest action',
 		'field.actionHistory': 'Action history',
-		'label.demoSeedData': 'demo seed data',
-		'label.demoSeedRecords': 'demo seed records',
+		'label.demoSeedData': 'official source',
+		'label.demoSeedRecords': 'official records',
 		'label.filteredTimeline': 'filtered timeline',
 		'label.preparedEntities': 'prepared entities',
-		'label.futureAdapters': 'future adapters',
+		'label.futureAdapters': 'planned sources',
 		'label.searchPlaceholder': 'Search bills, Hindi titles, ministries',
 		'section.overview': 'Overview',
+		'section.houses': 'Houses',
 		'section.timeline': 'Timeline',
 		'section.bills': 'Bills',
 		'section.committees': 'Committees',
@@ -79,10 +81,10 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
 		'section.sources': 'Sources'
 	},
 	hi: {
-		'app.demoSeedOnly': 'केवल डेमो सीड डेटा',
+		'app.demoSeedOnly': 'आधिकारिक सार्वजनिक रिकॉर्ड',
 		'app.title': 'भारतीय विधायी इंटेलिजेंस, टाइमलाइन के रूप में।',
 		'app.systemModel': 'प्रणाली मॉडल',
-		'app.noScraping': 'इस MVP में स्क्रैपिंग, प्रमाणीकरण या भुगतान नहीं है। स्रोत एडेप्टर भविष्य के काम के लिए तैयार हैं।',
+		'app.noScraping': 'पारदर्शिता के लिए सार्वजनिक स्रोत लिंक दिखाए गए हैं। यह स्थानीय प्रोटोटाइप साइन-इन, भुगतान या निजी ब्राउज़िंग डेटा एकत्र नहीं करता।',
 		'app.parliamentModel': 'संसद = राष्ट्रपति + लोक सभा + राज्य सभा।',
 		'app.stageMachineModel': 'साधारण विधेयक और धन विधेयक अलग चरण मशीनों का उपयोग करते हैं।',
 		'app.firstClassSurfaces': 'समितियां, प्रश्न, बहस, अधिनियम और स्रोत लिंक प्रथम-श्रेणी सतहें हैं।',
@@ -100,13 +102,14 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
 		'field.introduced': 'प्रस्तुत',
 		'field.latestAction': 'नवीनतम कार्रवाई',
 		'field.actionHistory': 'कार्रवाई इतिहास',
-		'label.demoSeedData': 'डेमो सीड डेटा',
-		'label.demoSeedRecords': 'डेमो सीड रिकॉर्ड',
+		'label.demoSeedData': 'आधिकारिक स्रोत',
+		'label.demoSeedRecords': 'आधिकारिक रिकॉर्ड',
 		'label.filteredTimeline': 'फ़िल्टर की गई टाइमलाइन',
 		'label.preparedEntities': 'तैयार इकाइयां',
-		'label.futureAdapters': 'भविष्य एडेप्टर',
+		'label.futureAdapters': 'योजित स्रोत',
 		'label.searchPlaceholder': 'विधेयक, हिंदी शीर्षक, मंत्रालय खोजें',
 		'section.overview': 'अवलोकन',
+		'section.houses': 'सदन',
 		'section.timeline': 'टाइमलाइन',
 		'section.bills': 'विधेयक',
 		'section.committees': 'समितियां',

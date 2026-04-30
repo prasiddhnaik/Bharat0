@@ -5,13 +5,22 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
-		"build": "vite build",
+		"build": "vite build && vite build --ssr server.ts --outDir dist-server",
 		"preview": "vite preview",
-		"prepare": "svelte-kit sync || echo ''",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"start": "node dist-server/server.js",
+		"start:local": "npm run build && HOST=127.0.0.1 PORT=5174 npm run start",
+		"check": "tsc --noEmit",
+		"check:watch": "tsc --noEmit --watch",
 		"db:generate": "prisma generate",
+		"db:push": "prisma db push",
 		"db:seed": "tsx prisma/seed.ts",
+		"db:upsert:prs": "tsx scripts/upsert-prs-legislation.ts",
+		"db:upsert:pdl-pre2004": "tsx scripts/upsert-pdl-pre2004-legislation.ts",
+		"db:setup": "npm run db:generate && npm run db:push && npm run db:seed && npm run verify:db",
+		"sync:pdl-pre2004": "tsx scripts/sync-pdl-pre2004-legislation.ts",
+		"sync:prs": "tsx scripts/sync-prs-legislation.ts",
+		"sync:sansad": "tsx scripts/sync-sansad-legislation.ts",
+		"verify:db": "tsx scripts/verify-db.ts",
 		"verify:ingestion": "tsx scripts/verify-ingestion-contracts.ts",
 		"verify:localization": "tsx scripts/verify-localization.ts",
 		"verify:prisma-mappers": "tsx scripts/verify-prisma-mappers.ts",
@@ -23,19 +32,25 @@
 		"seed": "tsx prisma/seed.ts"
 	},
 	"devDependencies": {
-		"@sveltejs/adapter-auto": "^7.0.1",
-		"@sveltejs/kit": "^2.57.0",
-		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@tailwindcss/vite": "^4.2.2",
+		"@types/node": "^25.6.0",
+		"@types/react": "^19.2.7",
+		"@types/react-dom": "^19.2.3",
+		"@vitejs/plugin-react": "^5.1.2",
 		"prisma": "^7.8.0",
-		"svelte": "^5.55.2",
-		"svelte-check": "^4.4.6",
 		"tailwindcss": "^4.2.2",
 		"tsx": "^4.21.0",
 		"typescript": "^6.0.2",
 		"vite": "^8.0.7"
 	},
 	"dependencies": {
-		"@prisma/client": "^7.8.0"
+		"@prisma/adapter-pg": "^7.8.0",
+		"@prisma/client": "^7.8.0",
+		"cheerio": "^1.2.0",
+		"dotenv": "^17.4.2",
+		"pdf-parse": "^2.4.5",
+		"pg": "^8.20.0",
+		"react": "^19.2.3",
+		"react-dom": "^19.2.3"
 	}
 }

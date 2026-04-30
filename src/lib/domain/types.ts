@@ -1,5 +1,6 @@
 export const SECTION_IDS = [
 	'overview',
+	'houses',
 	'timeline',
 	'bills',
 	'committees',
@@ -84,6 +85,7 @@ export type SourceKind =
 	| 'rajya-sabha'
 	| 'india-code'
 	| 'data-gov'
+	| 'prs'
 	| 'egazette'
 	| 'neva'
 	| 'demo-seed';

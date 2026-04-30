@@ -2,22 +2,86 @@
 	import { SECTION_IDS, type SectionId } from '$lib/domain/types';
 	import { getSectionLabel, type Language } from '$lib/domain/localization';
 
-	let { active, language }: { active: SectionId; language: Language } = $props();
+	let {
+		active,
+		language
+	}: { active: SectionId; language: Language } = $props();
+
+	const fixedSections: SectionId[] = ['timeline'];
+	const primarySections: SectionId[] = ['bills', 'committees'];
+	const secondarySections = SECTION_IDS.filter((section) => section !== 'overview' && !fixedSections.includes(section) && !primarySections.includes(section));
+
+	function linkClass(section: SectionId) {
+		return `relative z-20 grid h-10 min-w-[5.75rem] shrink-0 select-none place-items-center whitespace-nowrap rounded-md border border-transparent px-3 text-xs font-medium leading-none transition bz-focus ${
+			active === section ? 'bg-[var(--bz-accent-2)] text-[var(--bz-accent)]' : 'text-[var(--bz-text-2)] hover:bg-[var(--bz-surface-2)] hover:text-[var(--bz-text-1)]'
+		}`;
+	}
 
 	function hrefFor(section: SectionId) {
 		return `/?section=${section}&lang=${language}`;
 	}
 </script>
 
-<nav class="flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 p-1 shadow-inner shadow-black/30 [scrollbar-width:thin]" aria-label="Sections">
-	{#each SECTION_IDS as section}
-		<a
-			href={hrefFor(section)}
-			class={`min-h-11 shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-cyan-400/60 ${
-				active === section ? 'bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-950/40' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
+<nav class="relative z-20 flex shrink-0 items-center gap-1 overflow-visible" aria-label="Sections">
+	<a
+		class={`group relative z-20 flex shrink-0 select-none items-center justify-center whitespace-nowrap text-xs font-medium leading-none transition bz-focus ${
+			active === 'overview' ? 'text-[var(--bz-accent)]' : 'text-[var(--bz-text-2)] hover:text-[var(--bz-text-1)]'
+		}`}
+		data-testid="section-overview-button"
+		data-sveltekit-reload
+		href={hrefFor('overview')}
+		aria-current={active === 'overview' ? 'page' : undefined}
+		style="position: relative; z-index: 9999; min-height: 3rem; align-self: stretch; pointer-events: auto;"
+	>
+		<span
+			class={`grid h-10 min-w-[5.75rem] place-items-center rounded-md border border-transparent px-3 transition ${
+				active === 'overview' ? 'bg-[var(--bz-accent-2)]' : 'group-hover:bg-[var(--bz-surface-2)]'
 			}`}
+		>
+			{getSectionLabel('overview', language)}
+		</span>
+	</a>
+	{#each fixedSections as section}
+		<a
+			class={linkClass(section)}
+			data-testid={`section-${section}-button`}
+			data-sveltekit-reload
+			href={hrefFor(section)}
+			aria-current={active === section ? 'page' : undefined}
 		>
 			{getSectionLabel(section, language)}
 		</a>
 	{/each}
+	{#each primarySections as section}
+		<a
+			class={linkClass(section)}
+			data-testid={`section-${section}-button`}
+			data-sveltekit-reload
+			href={hrefFor(section)}
+			aria-current={active === section ? 'page' : undefined}
+		>
+			{getSectionLabel(section, language)}
+		</a>
+	{/each}
+	<details class="relative">
+		<summary
+			class={`list-none rounded-md px-2.5 py-1.5 text-xs font-medium transition marker:hidden bz-focus ${
+				secondarySections.includes(active) ? 'bg-[var(--bz-accent-2)] text-[var(--bz-accent)]' : 'text-[var(--bz-text-2)] hover:bg-[var(--bz-surface-2)] hover:text-[var(--bz-text-1)]'
+			}`}
+		>
+			More
+		</summary>
+		<div class="absolute left-0 top-full z-50 mt-1 grid min-w-32 gap-1 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] p-1 shadow-lg">
+			{#each secondarySections as section}
+				<a
+					class={linkClass(section)}
+					data-sveltekit-reload
+					href={hrefFor(section)}
+					aria-current={active === section ? 'page' : undefined}
+				>
+					{getSectionLabel(section, language)}
+				</a>
+			{/each}
+		</div>
+	</details>
 </nav>

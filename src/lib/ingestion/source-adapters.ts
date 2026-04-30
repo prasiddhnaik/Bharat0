@@ -45,8 +45,9 @@ export const officialSourceAdapters: OfficialSourceAdapter[] = [
 		status: 'prepared-contract',
 		authority: 'union-parliament',
 		supportedHouses: ['lok-sabha', 'rajya-sabha'],
-		outputs: ['sitting_days', 'timeline_events', 'questions', 'debates', 'committees', 'bills'],
-		notes: 'Prepared as the umbrella source family for Parliament surfaces. No fetcher is implemented in the MVP.'
+		outputs: ['bills', 'bill_actions', 'sitting_days', 'timeline_events', 'questions', 'debates', 'committees', 'acts'],
+		notes:
+			'Primary Bill-status source. scripts/sync-sansad-legislation.ts targets the Sansad legislation API path and falls back to a public mirrored JSON export when the live endpoint rejects direct server fetches.'
 	},
 	{
 		id: 'lok-sabha',
