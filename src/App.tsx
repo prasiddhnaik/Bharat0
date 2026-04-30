@@ -445,6 +445,7 @@ function MainContent({
 	return (
 		<>
 			<FilterBar filters={filters} sessionName={sessionName} stageCounts={dashboard.stageCounts ?? []} areaCounts={dashboard.areaCounts ?? []} />
+			<LoadTimeNotice />
 
 			{filters.section === 'overview' && (
 				<>
@@ -1050,6 +1051,14 @@ function SectionTabs({ active, language }: { active: SectionId; language: Langua
 				</div>
 			</details>
 		</nav>
+	);
+}
+
+function LoadTimeNotice() {
+	return (
+		<div className="mb-4 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] px-3 py-2 text-xs leading-5 text-[var(--bz-text-2)]">
+			<span className="font-semibold text-[var(--bz-text-1)]">Loading note:</span> Some sections pull thousands of records from the database, so it may take a second to load everything.
+		</div>
 	);
 }
 
