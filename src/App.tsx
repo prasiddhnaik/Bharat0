@@ -23,6 +23,7 @@ import {
 	type Bill,
 	type BillAction,
 	type BillStage,
+	type Debate,
 	type House,
 	type SectionId,
 	type SourceKind,
@@ -159,6 +160,24 @@ function hrefForAct(filters: DashboardFilters, actId: string) {
 	return `/?${search.toString()}`;
 }
 
+function hrefForDebate(filters: DashboardFilters, debateId: string) {
+	const search = new URLSearchParams({
+		section: 'debates',
+		lang: filters.language,
+		page: String(filters.page || 1),
+		pageSize: String(filters.pageSize || DEFAULT_BILLS_PAGE_SIZE),
+		debate: debateId
+	});
+	if (filters.query) search.set('q', filters.query);
+	if (filters.house !== 'all') search.set('house', filters.house);
+	if (filters.status !== 'all') search.set('status', filters.status);
+	if (filters.area !== 'all') search.set('area', filters.area);
+	if (filters.source !== 'all') search.set('source', filters.source);
+	if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
+	if (filters.date) search.set('date', filters.date);
+	return `/?${search.toString()}`;
+}
+
 function hrefForSourceRecords(sourceId: string, language: Language) {
 	const section = sourceId === 'source-india-code' ? 'acts' : 'bills';
 	const search = new URLSearchParams({
@@ -266,6 +285,7 @@ function App() {
 	const locationParams = new URLSearchParams(locationSearch);
 	const selectedBillId = dashboard.filters.section === 'bills' ? (locationParams.get('bill') ?? dashboard.bills[0]?.id ?? null) : locationParams.get('bill');
 	const selectedActId = dashboard.filters.section === 'acts' ? (locationParams.get('act') ?? dashboard.acts[0]?.id ?? null) : null;
+	const selectedDebateId = dashboard.filters.section === 'debates' ? (locationParams.get('debate') ?? dashboard.debates[0]?.id ?? null) : null;
 	const [selectedBill, setSelectedBill] = useState<AppBillDetailData | null>(null);
 	const [aiAnalysisByKey, setAiAnalysisByKey] = useState<Record<string, BillAnalysis>>({});
 	const [aiAnalysisLoadingKey, setAiAnalysisLoadingKey] = useState<string | null>(null);
@@ -273,6 +293,7 @@ function App() {
 	const dashboardSearch = useMemo(() => {
 		const searchParams = new URLSearchParams(locationSearch);
 		searchParams.delete('bill');
+		searchParams.delete('debate');
 		const serialized = searchParams.toString();
 		return serialized ? `?${serialized}` : '';
 	}, [locationSearch]);
@@ -280,6 +301,7 @@ function App() {
 	const actBillsById = useMemo(() => new Map((dashboard.actBills ?? dashboard.allBills ?? []).map((bill) => [bill.id, bill])), [dashboard.actBills, dashboard.allBills]);
 	const selectedAct = selectedActId ? dashboard.acts.find((act) => act.id === selectedActId) ?? null : null;
 	const selectedActLinkedBill = selectedAct ? actBillsById.get(selectedAct.linked_bill_id) ?? null : null;
+	const selectedDebate = selectedDebateId ? dashboard.debates.find((debate) => debate.id === selectedDebateId) ?? null : null;
 	const selectedAnalysisKey = selectedBillForRender ? `${selectedBillForRender.bill.id}:${dashboard.filters.language}` : null;
 	const localSelectedAnalysis = useMemo(
 		() => (selectedBillForRender ? buildBillAnalysis(selectedBillForRender.bill, selectedBillForRender.actions, dashboard.filters.language) : null),
@@ -404,10 +426,12 @@ function App() {
 					<ActDetailPanel act={selectedAct} linkedBill={selectedActLinkedBill} filters={dashboard.filters} onNavigate={navigateInApp} />
 				) : dashboard.filters.section === 'bills' ? (
 					<BillDetailPanel bill={selectedBillForRender?.bill ?? null} actions={selectedBillForRender?.actions ?? []} language={dashboard.filters.language} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
+				) : dashboard.filters.section === 'debates' ? (
+					<DebateDetailPanel debate={selectedDebate} filters={dashboard.filters} onNavigate={navigateInApp} />
 				) : null
 			}
 		>
-			<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedActId={selectedActId} selectedBill={selectedBillForRender} selectedBillAnalysis={selectedBillAnalysis} selectedAnalysisStatus={selectedAnalysisStatus} onNavigate={navigateInApp} />
+			<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedActId={selectedActId} selectedDebateId={selectedDebateId} selectedBill={selectedBillForRender} selectedBillAnalysis={selectedBillAnalysis} selectedAnalysisStatus={selectedAnalysisStatus} onNavigate={navigateInApp} />
 		</AppShell>
 	);
 }
@@ -416,6 +440,7 @@ function MainContent({
 	dashboard,
 	selectedBillId,
 	selectedActId,
+	selectedDebateId,
 	selectedBill,
 	selectedBillAnalysis,
 	selectedAnalysisStatus,
@@ -424,6 +449,7 @@ function MainContent({
 	dashboard: AppDashboardData;
 	selectedBillId: string | null;
 	selectedActId: string | null;
+	selectedDebateId: string | null;
 	selectedBill: AppBillDetailData | null;
 	selectedBillAnalysis: BillAnalysis | null;
 	selectedAnalysisStatus: AnalysisStatus;
@@ -524,14 +550,28 @@ function MainContent({
 				dashboard.debates.length ? (
 					<section className="space-y-3">
 						{dashboard.debates.map((debate) => (
-							<article className="bz-panel rounded-lg p-4" key={debate.id}>
-								<p className="bz-eyebrow">
-									{houseLabelsLocalized[filters.language][debate.house]} · {formatDate(debate.date)}
-								</p>
-								<h2 className="mt-2 text-base font-semibold text-[var(--bz-text-1)]">{debate.title}</h2>
-								<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">{debate.summary}</p>
+							<article className={cx('bz-panel rounded-lg p-4 transition', debate.id === selectedDebateId ? 'border-[var(--bz-accent)] bg-[var(--bz-accent-3)]' : 'hover:border-[var(--bz-accent)]')} key={debate.id}>
+								<a
+									className="block rounded-sm bz-focus"
+									href={hrefForDebate(filters, debate.id)}
+									aria-current={debate.id === selectedDebateId ? 'true' : undefined}
+									onClick={(event) => {
+										if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+										event.preventDefault();
+										onNavigate(hrefForDebate(filters, debate.id));
+									}}
+								>
+									<div className="flex flex-wrap items-center gap-2">
+										<p className="bz-eyebrow">
+											{houseLabelsLocalized[filters.language][debate.house]} · {formatDate(debate.date)}
+										</p>
+										<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--bz-text-2)]">{debateStageLabel(debate)}</span>
+									</div>
+									<h2 className="mt-2 text-base font-semibold text-[var(--bz-text-1)]">{debate.title}</h2>
+									<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">{debate.summary}</p>
+								</a>
 								<div className="mt-4">
-									<SourceBadge url={debate.source_url} isDemoSeed={debate.isDemoSeed} />
+									<SourceBadge url={debate.source_url} label={debateSourceLabel(debate)} isDemoSeed={debate.isDemoSeed} />
 								</div>
 							</article>
 						))}
@@ -2071,6 +2111,95 @@ function getNextWatchItems(bill: Bill, actions: BillAction[], language: Language
 		latestAction ? `Use the latest captured action from ${formatDate(latestAction.date)} as the baseline for updates.` : 'Add action history from the official bill page.',
 		sourceItem
 	];
+}
+
+const debateBillLinks: Record<string, string> = {
+	'debate-income-tax-bill-introduced': 'income-tax-bill-2025',
+	'debate-dpdp-bill-introduced': 'digital-personal-data-protection-bill-2023',
+	'debate-tribhuvan-bill-passed': 'tribhuvan-sahkari-university-bill-2025',
+	'debate-aircraft-objects-bill-introduced': 'protection-of-interests-in-aircraft-objects-bill-2025'
+};
+
+function debateStageLabel(debate: Pick<Debate, 'title'>) {
+	const normalizedTitle = debate.title.toLowerCase();
+	if (normalizedTitle.includes('passed')) return 'Passed debate';
+	if (normalizedTitle.includes('introduced')) return 'Introduction';
+	return 'Proceeding';
+}
+
+function debateSourceLabel(debate: Pick<Debate, 'source_url'>) {
+	const normalizedUrl = debate.source_url.toLowerCase();
+	if (normalizedUrl.includes('eparlib.sansad.in')) return 'Parliament Digital Library';
+	return sourceKindLabels[sourceKindFromUrl(debate.source_url)];
+}
+
+function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | null; filters: DashboardFilters; onNavigate: NavigateHandler }) {
+	if (!debate) {
+		return (
+			<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
+				<div className="p-4">
+					<p className="bz-eyebrow text-[var(--bz-accent)]">Debate detail</p>
+					<h2 className="mt-3 text-lg font-semibold text-[var(--bz-text-1)]">Select a debate</h2>
+					<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">Choose a debate proceeding to inspect the source, chamber, date, and related Bill context.</p>
+				</div>
+			</aside>
+		);
+	}
+
+	const linkedBillId = debateBillLinks[debate.id];
+	const linkedBillHref = linkedBillId ? hrefForBill(filters, linkedBillId) : null;
+	const stageLabel = debateStageLabel(debate);
+
+	return (
+		<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
+			<div className="border-b border-[var(--bz-border)] bg-[var(--bz-surface)] px-4 py-3">
+				<div className="flex flex-wrap items-center gap-2">
+					<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10.5px] font-semibold text-[var(--bz-text-2)]">{stageLabel}</span>
+					<span className="rounded border border-[var(--bz-border)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]">{houseLabelsLocalized[filters.language][debate.house]}</span>
+					{debate.isDemoSeed && <span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]">Sandbox record</span>}
+				</div>
+				<h2 className="mt-3 text-lg font-bold leading-6 text-[var(--bz-text-1)]">{debate.title}</h2>
+				<p className="mt-1 text-xs text-[var(--bz-text-2)]">{formatDate(debate.date)}</p>
+			</div>
+
+			<div className="p-4">
+				<div className="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-accent-3)] p-3">
+					<p className="bz-eyebrow text-[0.55rem] text-[var(--bz-accent)]">Proceeding read</p>
+					<p className="mt-2 text-[13px] leading-6 text-[var(--bz-text-1)]">{debate.summary}</p>
+				</div>
+
+				<dl className="mt-5 grid grid-cols-2 gap-2 text-xs">
+					<DetailTerm label="House" value={houseLabelsLocalized[filters.language][debate.house]} />
+					<DetailTerm label="Date" value={formatDate(debate.date)} />
+					<DetailTerm label="Source family" value={debateSourceLabel(debate)} />
+					<DetailTerm label="Stage read" value={stageLabel} />
+				</dl>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+					<p className="bz-eyebrow text-[0.55rem]">Related Bill</p>
+					{linkedBillHref ? (
+						<a
+							className="mt-2 inline-flex rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2 py-1 text-[10.5px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus"
+							href={linkedBillHref}
+							onClick={(event) => {
+								if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+								event.preventDefault();
+								onNavigate(linkedBillHref);
+							}}
+						>
+							Open linked Bill
+						</a>
+					) : (
+						<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">No linked Bill has been mapped for this debate yet.</p>
+					)}
+				</div>
+
+				<div className="mt-5">
+					<SourceBadge url={debate.source_url} label={debateSourceLabel(debate)} isDemoSeed={debate.isDemoSeed} />
+				</div>
+			</div>
+		</aside>
+	);
 }
 
 function ActDetailPanel({ act, linkedBill, filters, onNavigate }: { act: Act | null; linkedBill: Bill | null; filters: DashboardFilters; onNavigate: NavigateHandler }) {
