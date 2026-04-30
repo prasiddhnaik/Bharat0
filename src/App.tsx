@@ -29,6 +29,7 @@ import {
 	type TimelineEvent
 } from '$lib/domain/types';
 import { DEFAULT_BILLS_PAGE_SIZE, parseDashboardFilters, type DashboardFilters } from '$lib/domain/dashboard-filters';
+import { getActPartyPositions, type PartyPositionSide } from '$lib/domain/party-positions';
 import { parliamentHouseSnapshots, type ParliamentHouseSnapshot } from '$lib/domain/parliament-houses';
 import { getPrimeMinisterTerm, getPrimeMinisterTermLabel, PRIME_MINISTER_TERMS } from '$lib/domain/prime-ministers';
 import type { TimelineDateGroup, TimelineDateRailItem } from '$lib/domain/timeline-view';
@@ -2050,6 +2051,7 @@ function ActDetailPanel({ act, linkedBill, filters, onNavigate }: { act: Act | n
 	}
 
 	const linkedBillHref = linkedBill ? hrefForBill(filters, linkedBill.id) : null;
+	const partyPositions = getActPartyPositions(act, linkedBill);
 
 	return (
 		<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
@@ -2101,6 +2103,36 @@ function ActDetailPanel({ act, linkedBill, filters, onNavigate }: { act: Act | n
 					</div>
 				)}
 
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+					<div className="flex flex-wrap items-start justify-between gap-2">
+						<div>
+							<p className="bz-eyebrow text-[0.55rem]">Party positions</p>
+							<p className="mt-2 text-[12px] leading-5 text-[var(--bz-text-2)]">{partyPositions.voteNote}</p>
+						</div>
+						<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--bz-text-2)]">
+							{partyPositions.status === 'captured' ? 'Sourced' : 'Needs transcript'}
+						</span>
+					</div>
+					<div className="mt-3 grid gap-2">
+						{partyPositions.positions.map((position) => (
+							<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] p-2.5" key={`${position.party}-${position.side}`}>
+								<div className="flex flex-wrap items-center gap-2">
+									<PartyPositionBadge side={position.side} />
+									<p className="text-[12px] font-semibold leading-5 text-[var(--bz-text-1)]">{position.party}</p>
+								</div>
+								<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{position.reason}</p>
+								{position.sourceUrl ? (
+									<a className="mt-2 inline-flex text-[11px] font-semibold text-[var(--bz-accent)] transition hover:text-[var(--bz-accent-2)] bz-focus" href={position.sourceUrl} target="_blank" rel="noreferrer">
+										{position.evidence}
+									</a>
+								) : (
+									<p className="mt-2 text-[11px] leading-5 text-[var(--bz-text-3)]">{position.evidence}</p>
+								)}
+							</div>
+						))}
+					</div>
+				</div>
+
 				<div className="mt-5 flex flex-wrap gap-2">
 					<SourceBadge url={act.india_code_url} kind="india-code" label="Act text" isDemoSeed={act.isDemoSeed} />
 					{linkedBill && <SourceBadge url={linkedBill.source_url} isDemoSeed={linkedBill.isDemoSeed} />}
@@ -2108,6 +2140,20 @@ function ActDetailPanel({ act, linkedBill, filters, onNavigate }: { act: Act | n
 			</div>
 		</aside>
 	);
+}
+
+function PartyPositionBadge({ side }: { side: PartyPositionSide }) {
+	const labels: Record<PartyPositionSide, string> = {
+		supported: 'Wanted passage',
+		opposed: 'Objected',
+		qualified: 'Qualified support'
+	};
+	const tones: Record<PartyPositionSide, string> = {
+		supported: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+		opposed: 'border-rose-200 bg-rose-50 text-rose-800',
+		qualified: 'border-amber-200 bg-amber-50 text-amber-800'
+	};
+	return <span className={cx('rounded border px-1.5 py-0.5 text-[10px] font-semibold', tones[side])}>{labels[side]}</span>;
 }
 
 function BillDetailPanel({
