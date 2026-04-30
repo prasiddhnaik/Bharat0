@@ -3,6 +3,9 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"engines": {
+		"node": ">=22 <23"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build && vite build --ssr server.ts --outDir dist-server",
@@ -11,8 +14,10 @@
 		"start:local": "npm run build && HOST=127.0.0.1 PORT=5174 npm run start",
 		"check": "tsc --noEmit",
 		"check:watch": "tsc --noEmit --watch",
+		"verify:production": "npm run check && npm run build && tsx scripts/verify-production.ts",
 		"db:generate": "prisma generate",
 		"db:push": "prisma db push",
+		"db:deploy": "npm run db:generate && npm run db:push",
 		"db:seed": "tsx prisma/seed.ts",
 		"db:upsert:prs": "tsx scripts/upsert-prs-legislation.ts",
 		"db:upsert:pdl-pre2004": "tsx scripts/upsert-pdl-pre2004-legislation.ts",

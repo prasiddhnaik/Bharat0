@@ -12,6 +12,7 @@ export type DashboardFilters = {
 	date: string;
 	status: BillStage | 'all';
 	area: string;
+	source: string;
 	primeMinister: PrimeMinisterFilter;
 	query: string;
 	language: Language;
@@ -37,6 +38,7 @@ export function parseDashboardFilters(searchParams: URLSearchParams): DashboardF
 		date: searchParams.get('date') ?? DEFAULT_DASHBOARD_DATE,
 		status: statusParam ? (statusParam as BillStage) : 'all',
 		area: searchParams.get('area') ?? 'all',
+		source: searchParams.get('source') ?? 'all',
 		primeMinister: isPrimeMinisterFilter(primeMinisterParam) ? primeMinisterParam : 'all',
 		query: searchParams.get('q') ?? '',
 		language: parseLanguage(searchParams.get('lang')),

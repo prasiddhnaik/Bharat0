@@ -8,7 +8,7 @@ const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
 const DEFAULT_NVIDIA_MODEL = 'meta/llama-3.3-70b-instruct';
 const CACHE_TTL_MS = 1000 * 60 * 30;
-const ANALYSIS_PROMPT_VERSION = 'bill-analysis-v4-gdp-impact';
+const ANALYSIS_PROMPT_VERSION = 'bill-analysis-v5-economic-impact-channels';
 
 export type AiAnalysisProvider = 'groq' | 'nvidia';
 
@@ -249,7 +249,7 @@ function buildMessages(bill: Bill, actions: BillAction[], language: string, sour
 				'You may cautiously infer the broad policy topic from the title, ministry, and source excerpt, but do not invent exact clauses, amounts, affected Acts, deadlines, rights, offences, penalties, or political motives.',
 				'If the official PDF excerpt is unavailable, say that clearly and explain what this limits. If it is available, explain that the source PDF was checked and still avoid unsupported claims outside the excerpt.',
 				'Do not copy the title as the summary. Explain what the bill appears to be about, who would care, and what still needs verification from the source text.',
-				'Include a GDP/economic-impact read. For bills less than 10 years old, discuss likely near-term channels such as public spending, compliance cost, investment, productivity, inflation, formalisation, or sector demand. For bills 10 years old or older, discuss plausible retrospective or long-run GDP channels. Do not invent numerical GDP estimates, percentage points, rupee values, or causal outcomes unless supplied in the source excerpt.',
+				'Include a GDP/economic-impact read that is useful rather than generic. Structure gdpImpact as 2-4 compact sentences covering: timing window, direct and indirect transmission channels, likely direction or uncertainty, confidence level, and the specific data needed to verify it. For bills less than 10 years old, emphasize near-term channels such as public spending, compliance cost, investment, productivity, inflation, formalisation, or sector demand. For bills 10 years old or older, emphasize retrospective or long-run channels and say what historical indicators would be needed. Do not invent numerical GDP estimates, percentage points, rupee values, or causal outcomes unless supplied in the source excerpt.',
 				'Keep every field concise: 1-3 sentences per string. Avoid internal product phrases like "metadata-level record" unless explaining data quality.',
 				'Return valid JSON only with these keys: subject, plainLanguageSummary, whyItMatters, gdpImpact, stageExplanation, movementSummary, recordCoverage, dataQuality, nextWatchItems.',
 				'nextWatchItems must be exactly 3 concrete short strings.'
@@ -365,9 +365,51 @@ function getBillAgeContext(introducedOn: string, analysisDate: string) {
 
 function getFallbackGdpImpact(bill: Bill) {
 	const ministry = bill.ministry.replace(/^Ministry of\s+/i, '').trim() || 'the listed policy area';
+	const combinedText = `${bill.title_en} ${bill.summary ?? ''} ${ministry}`.toLowerCase();
 	const age = getBillAgeContext(bill.introduced_on, new Date().toISOString().slice(0, 10));
-	const ageFrame = age.category === '10-plus-years-old' ? 'long-run or retrospective' : 'near-term';
-	return `Possible ${ageFrame} GDP effects would depend on how this bill changed ${ministry}, compliance costs, public spending, investment, productivity, or sector demand. No numerical GDP estimate is available from the supplied bill record, so this should be treated as a qualitative economic-impact read.`;
+	const timing = age.category === '10-plus-years-old' ? 'Long-run read' : 'Near-term read';
+	const evidence = bill.summary
+		? 'Confidence is medium when the summary identifies concrete provisions; it remains qualitative until linked economic data is added.'
+		: 'Confidence is low because only title, ministry, and stage metadata are available.';
+	const channelRules: Array<{ match: RegExp; channel: string; direction: string; dataNeed: string }> = [
+		{
+			match: /appropriation|finance bill|tax|gst|customs|excise|budget|cess|finance/,
+			channel: 'tax policy, expenditure authorisation, borrowing needs, fiscal administration, and disposable income',
+			direction: 'more direct if the bill changes rates, exemptions, or spending authority',
+			dataNeed: 'Budget documents, tax receipts, expenditure heads, and implementation notifications'
+		},
+		{
+			match: /company|corporate|insolvency|competition|commerce|industry|sez|special economic zone|investment/,
+			channel: 'business compliance costs, market entry, investment confidence, credit recovery, and firm productivity',
+			direction: 'usually indirect through firm behaviour and transaction costs',
+			dataNeed: 'affected Act clauses, regulator rules, sector investment, and firm-compliance indicators'
+		},
+		{
+			match: /health|medical|education|skill|university|school|labour|employment|workers|wage/,
+			channel: 'human capital, labour-force participation, productivity, household costs, and public-service capacity',
+			direction: 'mostly medium-to-long run unless spending or employer costs change immediately',
+			dataNeed: 'scheme spending, enrolment, health access, employment, or wage indicators'
+		},
+		{
+			match: /transport|highway|rail|shipping|port|aviation|airport|power|electricity|energy|infrastructure|telecom/,
+			channel: 'logistics costs, infrastructure capacity, energy reliability, private investment, and sector productivity',
+			direction: 'can be material where pricing, approvals, safety rules, or regulator powers change',
+			dataNeed: 'tariffs, project pipelines, regulator orders, traffic or output indicators'
+		},
+		{
+			match: /agriculture|farm|fisher|animal husbandry|dairy|food|rural|land|water|environment|forest|climate/,
+			channel: 'rural incomes, producer incentives, food supply, land or resource use, and environmental compliance',
+			direction: 'depends on whether obligations, compensation, permits, or market incentives change',
+			dataNeed: 'commodity prices, rural spending, clearance data, and affected producer groups'
+		}
+	];
+	const selected = channelRules.find((rule) => rule.match.test(combinedText)) ?? {
+		channel: `public spending, compliance costs, investment incentives, productivity, and demand in ${ministry}`,
+		direction: 'depends on the actual obligations, funding changes, and implementation rules',
+		dataNeed: 'bill clauses, budget links, and sector-output indicators'
+	};
+
+	return `${timing}: the main GDP channels are ${selected.channel}. Expected direction: ${selected.direction}. Evidence: ${evidence} Data needed: ${selected.dataNeed}.`;
 }
 
 function readString(value: unknown, fallback: string) {

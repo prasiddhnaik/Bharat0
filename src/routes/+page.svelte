@@ -4,9 +4,10 @@
 	import BillList from '$lib/components/bills/BillList.svelte';
 	import FilterBar from '$lib/components/filters/FilterBar.svelte';
 	import SourceBadge from '$lib/components/shared/SourceBadge.svelte';
+	import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
 	import TimelineRail from '$lib/components/timeline/TimelineRail.svelte';
 	import { formatDate, sourceKindLabels } from '$lib/domain/bill-stage-machine';
-	import { houseLabelsLocalized } from '$lib/domain/localization';
+	import { getBillTitle, houseLabelsLocalized } from '$lib/domain/localization';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -14,6 +15,7 @@
 	const section = $derived(data.dashboard.filters.section);
 	const sessionName = $derived(data.dashboard.sittingDays[0]?.session_name ?? 'Sandbox Session');
 	const language = $derived(data.dashboard.filters.language);
+	const actBillsById = $derived(new Map((data.dashboard.actBills ?? data.dashboard.allBills).map((bill) => [bill.id, bill])));
 	const sourceStatusLabels = {
 		prepared: 'Ready to connect',
 		'future-adapter': 'Planned source'
@@ -24,6 +26,35 @@
 	};
 	const sourcePipelineLabels = ['Find official record', 'Clean and match fields', 'Place on bill timeline', 'Show in BharatZero'];
 
+	function hrefForActPage(page: number) {
+		const filters = data.dashboard.filters;
+		const search = new URLSearchParams({
+			section: 'acts',
+			lang: filters.language,
+			page: String(page),
+			pageSize: String(filters.pageSize)
+		});
+		if (filters.query) search.set('q', filters.query);
+		if (filters.house !== 'all') search.set('house', filters.house);
+		if (filters.status !== 'all') search.set('status', filters.status);
+		if (filters.area !== 'all') search.set('area', filters.area);
+		if (filters.source !== 'all') search.set('source', filters.source);
+		if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
+		if (filters.date) search.set('date', filters.date);
+		return `/?${search.toString()}`;
+	}
+
+	function hrefForSourceRecords(sourceId: string) {
+		const section = sourceId === 'source-india-code' ? 'acts' : 'bills';
+		const search = new URLSearchParams({
+			section,
+			lang: language,
+			page: '1',
+			pageSize: String(data.dashboard.filters.pageSize),
+			source: sourceId
+		});
+		return `/?${search.toString()}`;
+	}
 </script>
 
 <svelte:head>
@@ -105,12 +136,40 @@
 		</section>
 	{:else if section === 'acts'}
 		<section class="space-y-3">
+			<div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] px-3 py-2 text-xs text-[var(--bz-text-2)]">
+				<span>{data.dashboard.pagination.totalItems.toLocaleString('en-IN')} Act records</span>
+				{#if data.dashboard.pagination.totalPages > 1}
+					<div class="flex items-center gap-2">
+						<a class="rounded-md border border-[var(--bz-border)] px-2.5 py-1 text-[11px] font-semibold transition hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)] bz-focus" class:pointer-events-none={data.dashboard.pagination.page <= 1} class:opacity-50={data.dashboard.pagination.page <= 1} href={hrefForActPage(Math.max(1, data.dashboard.pagination.page - 1))}>Previous</a>
+						<span class="bz-mono text-[11px] text-[var(--bz-text-3)]">Page {data.dashboard.pagination.page} / {data.dashboard.pagination.totalPages}</span>
+						<a class="rounded-md border border-[var(--bz-border)] px-2.5 py-1 text-[11px] font-semibold transition hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)] bz-focus" class:pointer-events-none={data.dashboard.pagination.page >= data.dashboard.pagination.totalPages} class:opacity-50={data.dashboard.pagination.page >= data.dashboard.pagination.totalPages} href={hrefForActPage(Math.min(data.dashboard.pagination.totalPages, data.dashboard.pagination.page + 1))}>Next</a>
+					</div>
+				{/if}
+			</div>
 			{#each data.dashboard.acts as act}
+				{@const linkedBill = actBillsById.get(act.linked_bill_id)}
 				<article class="bz-panel rounded-lg p-4">
-					<p class="bz-eyebrow">Act · {act.year}</p>
-					<h2 class="mt-2 text-base font-semibold text-[var(--bz-text-1)]">{act.title}</h2>
-					<p class="mt-2 text-sm text-[var(--bz-text-2)]">{act.act_number}</p>
-					<div class="mt-4"><SourceBadge url={act.india_code_url} kind="india-code" label="India Code target" isDemoSeed={act.isDemoSeed} /></div>
+					<div class="flex flex-wrap items-start justify-between gap-3">
+						<div class="min-w-0">
+							<p class="bz-eyebrow">Act · {act.year}</p>
+							<h2 class="mt-2 text-base font-semibold leading-6 text-[var(--bz-text-1)]">{act.title}</h2>
+							<p class="mt-1 text-sm text-[var(--bz-text-2)]">{act.act_number}</p>
+						</div>
+						<SourceBadge url={act.india_code_url} kind="india-code" label="Act text" isDemoSeed={act.isDemoSeed} />
+					</div>
+					{#if linkedBill}
+						<div class="mt-4 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+							<p class="bz-eyebrow text-[0.55rem]">Enacted from Bill</p>
+							<a class="mt-1 block text-sm font-semibold leading-5 text-[var(--bz-text-1)] transition hover:text-[var(--bz-accent)] bz-focus" href={`/?section=bills&bill=${linkedBill.id}&lang=${language}`}>
+								{getBillTitle(linkedBill, language)}
+							</a>
+							<div class="mt-2 flex flex-wrap items-center gap-2">
+								<StatusBadge stage={linkedBill.current_stage} {language} />
+								<span class="text-[11px] text-[var(--bz-text-3)]">{houseLabelsLocalized[language][linkedBill.origin_house]}</span>
+								<span class="text-[11px] text-[var(--bz-text-3)]">{linkedBill.ministry}</span>
+							</div>
+						</div>
+					{/if}
 				</article>
 			{/each}
 		</section>
@@ -148,7 +207,12 @@
 						<span class="rounded-md border border-[var(--bz-border)] px-2 py-1 text-[11px] text-[var(--bz-text-2)]" title={sourceStatusHelp[source.status]}>{sourceStatusLabels[source.status]}</span>
 					</div>
 					<p class="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">{source.preparedFor}</p>
-					<div class="mt-4"><SourceBadge url={source.url} kind={source.kind} label={sourceKindLabels[source.kind]} isDemoSeed={source.kind === 'demo-seed'} /></div>
+					<div class="mt-4 flex flex-wrap items-center gap-2">
+						<a class="rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2 py-1 text-[10.5px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus" href={hrefForSourceRecords(source.id)}>
+							Show records
+						</a>
+						<SourceBadge url={source.url} kind={source.kind} label={sourceKindLabels[source.kind]} isDemoSeed={source.kind === 'demo-seed'} />
+					</div>
 				</article>
 			{/each}
 		</section>

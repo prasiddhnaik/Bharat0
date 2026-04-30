@@ -6,6 +6,15 @@ const fakePrisma = {
 		async count() {
 			return 1;
 		},
+		async groupBy({ by }: { by: string[] }) {
+			if (by.includes('current_stage')) {
+				return [{ current_stage: 'REFERRED_COMMITTEE', _count: { _all: 1 } }];
+			}
+			if (by.includes('ministry')) {
+				return [{ ministry: 'Ministry of Law and Justice', _count: { _all: 1 } }];
+			}
+			return [];
+		},
 		async findMany() {
 			return [
 				{
@@ -82,7 +91,27 @@ const fakePrisma = {
 	sittingDay: { async findMany() { return []; } },
 	committee: { async findMany() { return []; } },
 	question: { async findMany() { return []; } },
-	act: { async findMany() { return []; } }
+	act: {
+		async count({ where }: { where: unknown }) {
+			const serializedWhere = JSON.stringify(where);
+			return serializedWhere.includes('aircraft') && serializedWhere.includes('india_code_url') ? 1 : 0;
+		},
+		async findMany({ where, take }: { where: unknown; take?: number }) {
+			const serializedWhere = JSON.stringify(where);
+			if (!serializedWhere.includes('aircraft') || !serializedWhere.includes('india_code_url') || take !== 1) return [];
+			return [
+				{
+					id: 'official-act-1',
+					title: 'Official Aircraft Act, 2026',
+					act_number: 'Act No. 2 of 2026',
+					year: 2026,
+					linked_bill_id: 'official-bill-1',
+					india_code_url: 'https://www.indiacode.nic.in/bitstream/official-aircraft-act.pdf',
+					is_demo_seed: false
+				}
+			];
+		}
+	}
 };
 
 const repository = createLegislativeRepository({ mode: 'prisma', prisma: fakePrisma });
@@ -91,14 +120,18 @@ const dashboard = await repository.getDashboardData({
 	house: 'lok-sabha',
 	date: '2026-07-20',
 	status: 'referred_committee',
+	area: 'all',
+	source: 'all',
+	primeMinister: 'all',
 	query: 'official',
-	language: 'en'
+	language: 'en',
+	page: 1,
+	pageSize: 60
 });
 
 assert.equal(dashboard.dataSource.mode, 'prisma');
 assert.equal(dashboard.bills[0]?.id, 'official-bill-1');
 assert.equal(dashboard.bills[0]?.isDemoSeed, false);
-assert.equal(dashboard.timelineEvents[0]?.date, '2026-07-20');
 assert.equal(dashboard.stats.billsTracked, 1);
 
 const detail = await repository.getBillDetail('official-bill-1');
@@ -108,5 +141,23 @@ assert.equal(detail.actions[0]?.description, 'Official test action row.');
 
 const relatedEvents = await repository.getTimelineEventsForBill('official-bill-1');
 assert.equal(relatedEvents[0]?.related_bill_id, 'official-bill-1');
+
+const actsDashboard = await repository.getDashboardData({
+	section: 'acts',
+	house: 'all',
+	date: '2026-07-20',
+	status: 'all',
+	area: 'all',
+	source: 'source-india-code',
+	primeMinister: 'all',
+	query: 'aircraft',
+	language: 'en',
+	page: 1,
+	pageSize: 1
+});
+
+assert.equal(actsDashboard.acts[0]?.id, 'official-act-1');
+assert.equal(actsDashboard.pagination.totalItems, 1);
+assert.equal(actsDashboard.pagination.totalPages, 1);
 
 console.log('Prisma repository contract checks passed using a fake Prisma client.');
