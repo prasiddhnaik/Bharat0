@@ -59,7 +59,8 @@ function shapeDashboardForClient(dashboard: Awaited<ReturnType<LegislativeReposi
 			timelineGroups: groupTimelineEventsByDate(previewEvents),
 			questions: [],
 			debates: [],
-			acts: []
+			acts: [],
+			actBills: []
 		};
 	}
 
@@ -71,7 +72,8 @@ function shapeDashboardForClient(dashboard: Awaited<ReturnType<LegislativeReposi
 			timelineDateRail: [],
 			questions: [],
 			debates: [],
-			acts: []
+			acts: [],
+			actBills: []
 		};
 	}
 
@@ -83,6 +85,7 @@ function shapeDashboardForClient(dashboard: Awaited<ReturnType<LegislativeReposi
 			questions: [],
 			debates: [],
 			acts: [],
+			actBills: [],
 			sources: []
 		};
 	}
@@ -97,6 +100,7 @@ function shapeDashboardForClient(dashboard: Awaited<ReturnType<LegislativeReposi
 			questions: [],
 			debates: [],
 			acts: [],
+			actBills: [],
 			sources: []
 		};
 	}
@@ -111,6 +115,7 @@ function shapeDashboardForClient(dashboard: Awaited<ReturnType<LegislativeReposi
 			committees: [],
 			debates: [],
 			acts: [],
+			actBills: [],
 			sources: []
 		};
 	}
@@ -125,6 +130,7 @@ function shapeDashboardForClient(dashboard: Awaited<ReturnType<LegislativeReposi
 			committees: [],
 			questions: [],
 			acts: [],
+			actBills: [],
 			sources: []
 		};
 	}
@@ -152,7 +158,8 @@ function shapeDashboardForClient(dashboard: Awaited<ReturnType<LegislativeReposi
 		committees: [],
 		questions: [],
 		debates: [],
-		acts: []
+		acts: [],
+		actBills: []
 	};
 }
 

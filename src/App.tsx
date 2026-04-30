@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BillDetailData, DashboardData } from '$lib/data/view-model';
 import {
 	formatDate,
@@ -19,6 +19,7 @@ import {
 	MONEY_BILL_STAGES,
 	ORDINARY_BILL_STAGES,
 	SECTION_IDS,
+	type Act,
 	type Bill,
 	type BillAction,
 	type BillStage,
@@ -80,8 +81,16 @@ function hrefFor(section: SectionId, language: Language, params: Record<string, 
 }
 
 function hrefForBillPage(filters: DashboardFilters, page: number) {
+	return hrefForPagedSection(filters, 'bills', page);
+}
+
+function hrefForActPage(filters: DashboardFilters, page: number) {
+	return hrefForPagedSection(filters, 'acts', page);
+}
+
+function hrefForPagedSection(filters: DashboardFilters, section: SectionId, page: number) {
 	const search = new URLSearchParams({
-		section: 'bills',
+		section,
 		lang: filters.language,
 		page: String(page),
 		pageSize: String(filters.pageSize || DEFAULT_BILLS_PAGE_SIZE)
@@ -90,6 +99,7 @@ function hrefForBillPage(filters: DashboardFilters, page: number) {
 	if (filters.house !== 'all') search.set('house', filters.house);
 	if (filters.status !== 'all') search.set('status', filters.status);
 	if (filters.area !== 'all') search.set('area', filters.area);
+	if (filters.source !== 'all') search.set('source', filters.source);
 	if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
 	if (filters.date) search.set('date', filters.date);
 	return `/?${search.toString()}`;
@@ -106,6 +116,7 @@ function hrefForPrimeMinisterFilter(filters: DashboardFilters, primeMinister: st
 	if (filters.house !== 'all') search.set('house', filters.house);
 	if (filters.status !== 'all') search.set('status', filters.status);
 	if (filters.area !== 'all') search.set('area', filters.area);
+	if (filters.source !== 'all') search.set('source', filters.source);
 	if (primeMinister !== 'all') search.set('pm', primeMinister);
 	if (filters.date) search.set('date', filters.date);
 	return `/?${search.toString()}`;
@@ -123,10 +134,69 @@ function hrefForBill(filters: DashboardFilters, billId: string) {
 	if (filters.house !== 'all') search.set('house', filters.house);
 	if (filters.status !== 'all') search.set('status', filters.status);
 	if (filters.area !== 'all') search.set('area', filters.area);
+	if (filters.source !== 'all') search.set('source', filters.source);
 	if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
 	if (filters.date) search.set('date', filters.date);
 	return `/?${search.toString()}`;
 }
+
+function hrefForAct(filters: DashboardFilters, actId: string) {
+	const search = new URLSearchParams({
+		section: 'acts',
+		lang: filters.language,
+		page: String(filters.page || 1),
+		pageSize: String(filters.pageSize || DEFAULT_BILLS_PAGE_SIZE),
+		act: actId
+	});
+	if (filters.query) search.set('q', filters.query);
+	if (filters.house !== 'all') search.set('house', filters.house);
+	if (filters.status !== 'all') search.set('status', filters.status);
+	if (filters.area !== 'all') search.set('area', filters.area);
+	if (filters.source !== 'all') search.set('source', filters.source);
+	if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
+	if (filters.date) search.set('date', filters.date);
+	return `/?${search.toString()}`;
+}
+
+function hrefForSourceRecords(sourceId: string, language: Language) {
+	const section = sourceId === 'source-india-code' ? 'acts' : 'bills';
+	const search = new URLSearchParams({
+		section,
+		lang: language,
+		page: '1',
+		pageSize: String(DEFAULT_BILLS_PAGE_SIZE),
+		source: sourceId
+	});
+	return `/?${search.toString()}`;
+}
+
+function hrefWithoutSourceFilter(filters: DashboardFilters) {
+	const search = new URLSearchParams({
+		section: filters.section,
+		lang: filters.language,
+		page: '1',
+		pageSize: String(filters.pageSize || DEFAULT_BILLS_PAGE_SIZE)
+	});
+	if (filters.query) search.set('q', filters.query);
+	if (filters.house !== 'all') search.set('house', filters.house);
+	if (filters.status !== 'all') search.set('status', filters.status);
+	if (filters.area !== 'all') search.set('area', filters.area);
+	if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
+	if (filters.date) search.set('date', filters.date);
+	return `/?${search.toString()}`;
+}
+
+const sourceFilterLabels: Record<string, string> = {
+	'source-sansad': 'Sansad portal',
+	'source-lok-sabha': 'Lok Sabha official pages',
+	'source-rajya-sabha': 'Rajya Sabha official pages',
+	'source-prs': 'PRS Legislative Research',
+	'source-pdl': 'Parliament Digital Library',
+	'source-india-code': 'India Code',
+	'source-data-gov': 'data.gov.in',
+	'source-egazette': 'eGazette',
+	'source-neva': 'NeVA'
+};
 
 function initialsForName(name: string) {
 	return name
@@ -177,6 +247,7 @@ function createEmptyDashboard(filters: DashboardFilters): AppDashboardData {
 		questions: [],
 		debates: [],
 		acts: [],
+		actBills: [],
 		sources: [],
 		ingestion: {
 			adapters: [],
@@ -190,7 +261,9 @@ function App() {
 	const [locationSearch, setLocationSearch] = useState(() => window.location.search);
 	const filters = useMemo(() => parseDashboardFilters(new URLSearchParams(locationSearch)), [locationSearch]);
 	const [dashboard, setDashboard] = useState<AppDashboardData>(() => createEmptyDashboard(filters));
-	const selectedBillId = new URLSearchParams(locationSearch).get('bill') ?? dashboard.bills[0]?.id ?? null;
+	const locationParams = new URLSearchParams(locationSearch);
+	const selectedBillId = dashboard.filters.section === 'bills' ? (locationParams.get('bill') ?? dashboard.bills[0]?.id ?? null) : locationParams.get('bill');
+	const selectedActId = dashboard.filters.section === 'acts' ? (locationParams.get('act') ?? dashboard.acts[0]?.id ?? null) : null;
 	const [selectedBill, setSelectedBill] = useState<AppBillDetailData | null>(null);
 	const [aiAnalysisByKey, setAiAnalysisByKey] = useState<Record<string, BillAnalysis>>({});
 	const [aiAnalysisLoadingKey, setAiAnalysisLoadingKey] = useState<string | null>(null);
@@ -202,6 +275,9 @@ function App() {
 		return serialized ? `?${serialized}` : '';
 	}, [locationSearch]);
 	const selectedBillForRender = selectedBill?.bill.id === selectedBillId ? selectedBill : null;
+	const actBillsById = useMemo(() => new Map((dashboard.actBills ?? dashboard.allBills ?? []).map((bill) => [bill.id, bill])), [dashboard.actBills, dashboard.allBills]);
+	const selectedAct = selectedActId ? dashboard.acts.find((act) => act.id === selectedActId) ?? null : null;
+	const selectedActLinkedBill = selectedAct ? actBillsById.get(selectedAct.linked_bill_id) ?? null : null;
 	const selectedAnalysisKey = selectedBillForRender ? `${selectedBillForRender.bill.id}:${dashboard.filters.language}` : null;
 	const localSelectedAnalysis = useMemo(
 		() => (selectedBillForRender ? buildBillAnalysis(selectedBillForRender.bill, selectedBillForRender.actions, dashboard.filters.language) : null),
@@ -321,13 +397,14 @@ function App() {
 			query={dashboard.filters.query}
 			language={dashboard.filters.language}
 			dashboard={dashboard}
+			leftPanel={dashboard.filters.section === 'acts' ? <ActDetailPanel act={selectedAct} linkedBill={selectedActLinkedBill} filters={dashboard.filters} onNavigate={navigateInApp} /> : undefined}
 			aside={
 				dashboard.filters.section === 'bills' ? (
 					<BillDetailPanel bill={selectedBillForRender?.bill ?? null} actions={selectedBillForRender?.actions ?? []} language={dashboard.filters.language} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
 				) : null
 			}
 		>
-			<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedBill={selectedBillForRender} selectedBillAnalysis={selectedBillAnalysis} selectedAnalysisStatus={selectedAnalysisStatus} onNavigate={navigateInApp} />
+			<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedActId={selectedActId} selectedBill={selectedBillForRender} selectedBillAnalysis={selectedBillAnalysis} selectedAnalysisStatus={selectedAnalysisStatus} onNavigate={navigateInApp} />
 		</AppShell>
 	);
 }
@@ -335,6 +412,7 @@ function App() {
 function MainContent({
 	dashboard,
 	selectedBillId,
+	selectedActId,
 	selectedBill,
 	selectedBillAnalysis,
 	selectedAnalysisStatus,
@@ -342,6 +420,7 @@ function MainContent({
 }: {
 	dashboard: AppDashboardData;
 	selectedBillId: string | null;
+	selectedActId: string | null;
 	selectedBill: AppBillDetailData | null;
 	selectedBillAnalysis: BillAnalysis | null;
 	selectedAnalysisStatus: AnalysisStatus;
@@ -358,6 +437,7 @@ function MainContent({
 		'future-adapter': 'This official source is identified, but the connector is scheduled for later.'
 	};
 	const sourcePipelineLabels = ['Find official record', 'Clean and match fields', 'Place on bill timeline', 'Show in BharatZero'];
+	const actBillsById = useMemo(() => new Map((dashboard.actBills ?? dashboard.allBills ?? []).map((bill) => [bill.id, bill])), [dashboard.actBills, dashboard.allBills]);
 
 	return (
 		<>
@@ -453,18 +533,11 @@ function MainContent({
 			)}
 
 			{filters.section === 'acts' && (
-				<section className="space-y-3">
-					{dashboard.acts.map((act) => (
-						<article className="bz-panel rounded-lg p-4" key={act.id}>
-							<p className="bz-eyebrow">Act · {act.year}</p>
-							<h2 className="mt-2 text-base font-semibold text-[var(--bz-text-1)]">{act.title}</h2>
-							<p className="mt-2 text-sm text-[var(--bz-text-2)]">{act.act_number}</p>
-							<div className="mt-4">
-								<SourceBadge url={act.india_code_url} kind="india-code" label="India Code target" isDemoSeed={act.isDemoSeed} />
-							</div>
-						</article>
-					))}
-				</section>
+				<div className="space-y-3">
+					<BillPagination filters={filters} pagination={dashboard.pagination} recordLabel="Act record" recordLabelPlural="Act records" hrefForPage={hrefForActPage} ariaLabel="Act pages" />
+					<ActsList acts={dashboard.acts} linkedBillsById={actBillsById} selectedActId={selectedActId ?? undefined} filters={filters} onNavigate={onNavigate} />
+					<BillPagination filters={filters} pagination={dashboard.pagination} recordLabel="Act record" recordLabelPlural="Act records" hrefForPage={hrefForActPage} ariaLabel="Act pages" />
+				</div>
 			)}
 
 			{filters.section === 'sources' && (
@@ -502,7 +575,13 @@ function MainContent({
 									</span>
 								</div>
 								<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">{source.preparedFor}</p>
-								<div className="mt-4">
+								<div className="mt-4 flex flex-wrap items-center gap-2">
+									<a
+										className="rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2 py-1 text-[10.5px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus"
+										href={hrefForSourceRecords(source.id, filters.language)}
+									>
+										Show records
+									</a>
 									<SourceBadge url={source.url} kind={source.kind} label={sourceKindLabels[source.kind]} isDemoSeed={source.kind === 'demo-seed'} />
 								</div>
 							</article>
@@ -769,6 +848,7 @@ function AppShell({
 	language,
 	dashboard,
 	children,
+	leftPanel,
 	aside
 }: {
 	section: SectionId;
@@ -776,6 +856,7 @@ function AppShell({
 	language: Language;
 	dashboard: AppDashboardData;
 	children: React.ReactNode;
+	leftPanel?: React.ReactNode;
 	aside?: React.ReactNode;
 }) {
 	const [darkMode, setDarkMode] = useState(false);
@@ -804,7 +885,7 @@ function AppShell({
 				<div className="hidden h-5 w-px bg-[var(--bz-border)] sm:block" />
 				<SectionTabs active={section} language={language} />
 				<div className="mx-auto hidden min-w-[14rem] max-w-[24rem] flex-1 md:block">
-					<SearchCommand query={query} language={language} section={section} />
+					<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} />
 				</div>
 				<div className="ml-auto flex shrink-0 items-center gap-1">
 					<div className="hidden items-center gap-2 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1 lg:flex">
@@ -869,11 +950,11 @@ function AppShell({
 							: 'lg:grid-cols-[260px_minmax(0,1fr)]'
 				)}
 			>
-				{!sidebarCollapsed && <LeftSidebar cabinetOpen={cabinetOpen} setCabinetOpen={setCabinetOpen} dashboard={dashboard} language={language} />}
+				{!sidebarCollapsed && (leftPanel ?? <LeftSidebar cabinetOpen={cabinetOpen} setCabinetOpen={setCabinetOpen} dashboard={dashboard} language={language} />)}
 				<main className="min-h-0 min-w-0 overflow-y-auto">
 					<div className="mx-auto max-w-[1120px] space-y-3 p-3 lg:p-4">
 						<div className="md:hidden">
-							<SearchCommand query={query} language={language} section={section} />
+							<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} />
 						</div>
 						{children}
 					</div>
@@ -950,11 +1031,12 @@ function SectionTabs({ active, language }: { active: SectionId; language: Langua
 	);
 }
 
-function SearchCommand({ query, language, section }: { query: string; language: Language; section: SectionId }) {
+function SearchCommand({ query, language, section, source = 'all' }: { query: string; language: Language; section: SectionId; source?: string }) {
 	return (
 		<form action="/" method="GET" className="relative">
 			<input type="hidden" name="section" value={section} />
 			<input type="hidden" name="lang" value={language} />
+			{source !== 'all' && <input type="hidden" name="source" value={source} />}
 			<span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--bz-accent)]">⌕</span>
 			<input
 				name="q"
@@ -977,6 +1059,7 @@ function LeftSidebar({
 	dashboard: AppDashboardData;
 	language: Language;
 }) {
+	const sidebarRef = useRef<HTMLElement | null>(null);
 	const totalBills = dashboard.stats.billsTracked || dashboard.allBills.length || dashboard.bills.length;
 	const totalSources = dashboard.sources.length || dashboard.stats.preparedSources;
 	const totalCommittees = dashboard.stats.committeesTracked || dashboard.committees.length;
@@ -998,8 +1081,12 @@ function LeftSidebar({
 				]
 			: [];
 
+	useEffect(() => {
+		sidebarRef.current?.scrollTo({ top: 0 });
+	}, [dashboard.filters.section, dashboard.filters.primeMinister]);
+
 	return (
-		<aside className="hidden h-full min-h-0 overflow-y-auto border-r border-[var(--bz-border)] bg-[var(--bz-surface)] lg:block">
+		<aside ref={sidebarRef} className="hidden h-full min-h-0 overflow-y-auto border-r border-[var(--bz-border)] bg-[var(--bz-surface)] lg:block">
 			<div className="p-3">
 				<div className="relative mb-3 flex aspect-[4/3] flex-col justify-end overflow-hidden rounded-lg bg-[#ede9e0] dark:bg-[#282520]">
 					<div className="absolute inset-x-0 top-0 flex h-1">
@@ -1223,6 +1310,7 @@ function FilterBar({
 		filters.query,
 		filters.house,
 		filters.area,
+		filters.source,
 		filters.primeMinister,
 		filters.date,
 		filters.status,
@@ -1234,6 +1322,7 @@ function FilterBar({
 		<form key={formKey} className="bz-panel grid max-w-full gap-3 overflow-hidden rounded-lg p-3 md:grid-cols-2 xl:grid-cols-6" action="/" method="GET">
 			<input type="hidden" name="section" value={filters.section} />
 			<input type="hidden" name="lang" value={filters.language} />
+			{filters.source !== 'all' && <input type="hidden" name="source" value={filters.source} />}
 			<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 				{t('field.search', filters.language)}
 				<input
@@ -1294,7 +1383,19 @@ function FilterBar({
 					))}
 				</select>
 			</label>
-			<div className="flex min-w-0 justify-end md:col-span-2 xl:col-span-6">
+			<div className="flex min-w-0 flex-wrap items-center justify-between gap-2 md:col-span-2 xl:col-span-6">
+				{filters.source !== 'all' ? (
+					<div className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2.5 py-1 text-[11px] text-[var(--bz-text-2)]">
+						<span>
+							Source: <b className="text-[var(--bz-text-1)]">{sourceFilterLabels[filters.source] ?? filters.source}</b>
+						</span>
+						<a className="font-semibold text-[var(--bz-accent)] bz-focus" href={hrefWithoutSourceFilter(filters)}>
+							Clear
+						</a>
+					</div>
+				) : (
+					<span />
+				)}
 				<button className="min-h-9 w-full rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.07em] text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/25 sm:w-auto" type="submit">
 					{t('action.applyFilters', filters.language)}
 				</button>
@@ -1303,11 +1404,27 @@ function FilterBar({
 	);
 }
 
-function BillPagination({ filters, pagination }: { filters: DashboardFilters; pagination: DashboardPagination }) {
+function BillPagination({
+	filters,
+	pagination,
+	recordLabel = 'bill record',
+	recordLabelPlural = 'bill records',
+	hrefForPage = hrefForBillPage,
+	ariaLabel = 'Bill pages'
+}: {
+	filters: DashboardFilters;
+	pagination: DashboardPagination;
+	recordLabel?: string;
+	recordLabelPlural?: string;
+	hrefForPage?: (filters: DashboardFilters, page: number) => string;
+	ariaLabel?: string;
+}) {
+	const recordText = pagination.totalItems === 1 ? recordLabel : recordLabelPlural;
+
 	if (pagination.totalPages <= 1) {
 		return (
 			<div className="flex items-center justify-between rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] px-3 py-2 text-xs text-[var(--bz-text-2)]">
-				<span>{pagination.totalItems.toLocaleString('en-IN')} bill records</span>
+				<span>{pagination.totalItems.toLocaleString('en-IN')} {recordText}</span>
 			</div>
 		);
 	}
@@ -1318,7 +1435,7 @@ function BillPagination({ filters, pagination }: { filters: DashboardFilters; pa
 	const nextPage = Math.min(pagination.totalPages, pagination.page + 1);
 
 	return (
-		<nav className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] px-3 py-2 text-xs" aria-label="Bill pages">
+		<nav className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] px-3 py-2 text-xs" aria-label={ariaLabel}>
 			<span className="text-[var(--bz-text-2)]">
 				Showing <b className="text-[var(--bz-text-1)]">{firstItem.toLocaleString('en-IN')}-{lastItem.toLocaleString('en-IN')}</b> of <b className="text-[var(--bz-text-1)]">{pagination.totalItems.toLocaleString('en-IN')}</b>
 			</span>
@@ -1330,7 +1447,7 @@ function BillPagination({ filters, pagination }: { filters: DashboardFilters; pa
 							? 'pointer-events-none border-[var(--bz-border)] text-[var(--bz-text-3)] opacity-50'
 							: 'border-[var(--bz-border)] text-[var(--bz-text-2)] hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)]'
 					)}
-					href={hrefForBillPage(filters, previousPage)}
+					href={hrefForPage(filters, previousPage)}
 					aria-disabled={pagination.page <= 1}
 				>
 					Previous
@@ -1345,13 +1462,86 @@ function BillPagination({ filters, pagination }: { filters: DashboardFilters; pa
 							? 'pointer-events-none border-[var(--bz-border)] text-[var(--bz-text-3)] opacity-50'
 							: 'border-[var(--bz-border)] text-[var(--bz-text-2)] hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)]'
 					)}
-					href={hrefForBillPage(filters, nextPage)}
+					href={hrefForPage(filters, nextPage)}
 					aria-disabled={pagination.page >= pagination.totalPages}
 				>
 					Next
 				</a>
 			</div>
 		</nav>
+	);
+}
+
+function ActsList({
+	acts,
+	linkedBillsById,
+	selectedActId,
+	filters,
+	onNavigate
+}: {
+	acts: Act[];
+	linkedBillsById: Map<string, Bill>;
+	selectedActId?: string;
+	filters: DashboardFilters;
+	onNavigate: NavigateHandler;
+}) {
+	if (!acts.length) {
+		return <EmptyState title="No Acts match these filters" message="Change the search, source, House, stage, or ministry filters to broaden the enacted-law records." />;
+	}
+
+	return (
+		<section className="grid gap-3 lg:grid-cols-2">
+			{acts.map((act) => {
+				const linkedBill = linkedBillsById.get(act.linked_bill_id);
+				const linkedBillHref = linkedBill ? hrefForBill(filters, linkedBill.id) : null;
+				const actHref = hrefForAct(filters, act.id);
+				const selected = act.id === selectedActId;
+
+				return (
+					<article className={cx('bz-panel rounded-lg p-4 transition', selected ? 'border-[var(--bz-accent)] bg-[var(--bz-accent-3)]' : 'hover:border-[var(--bz-accent)]')} key={act.id}>
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<a
+								className="min-w-0 flex-1 rounded-sm bz-focus"
+								href={actHref}
+								aria-current={selected ? 'true' : undefined}
+								onClick={(event) => {
+									if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+									event.preventDefault();
+									onNavigate(actHref);
+								}}
+							>
+								<p className="bz-eyebrow">Act · {act.year}</p>
+								<h2 className="mt-2 text-base font-semibold leading-6 text-[var(--bz-text-1)]">{act.title}</h2>
+								<p className="mt-1 text-sm text-[var(--bz-text-2)]">{act.act_number}</p>
+							</a>
+							<SourceBadge url={act.india_code_url} kind="india-code" label="Act text" isDemoSeed={act.isDemoSeed} />
+						</div>
+
+						{linkedBill && (
+							<div className="mt-4 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+								<p className="bz-eyebrow text-[0.55rem]">Enacted from Bill</p>
+								<a
+									className="mt-1 block text-sm font-semibold leading-5 text-[var(--bz-text-1)] transition hover:text-[var(--bz-accent)] bz-focus"
+									href={linkedBillHref ?? undefined}
+									onClick={(event) => {
+										if (!linkedBillHref || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+										event.preventDefault();
+										onNavigate(linkedBillHref);
+									}}
+								>
+									{getBillTitle(linkedBill, filters.language)}
+								</a>
+								<div className="mt-2 flex flex-wrap items-center gap-2">
+									<StatusBadge stage={linkedBill.current_stage} language={filters.language} />
+									<span className={cx('rounded px-1.5 py-0.5 text-[10px] font-semibold', ministryTone(linkedBill.ministry))}>{ministryLabel(linkedBill.ministry)}</span>
+									<span className="text-[11px] text-[var(--bz-text-3)]">{houseLabelsLocalized[filters.language][linkedBill.origin_house]}</span>
+								</div>
+							</div>
+						)}
+					</article>
+				);
+			})}
+		</section>
 	);
 }
 
@@ -1538,7 +1728,7 @@ function BillAnalysisPanel({
 
 			<div className="mt-4 grid gap-2">
 				<AnalysisNote label="Why it matters" value={billAnalysis.whyItMatters} />
-				<AnalysisNote label="GDP / economic impact" value={billAnalysis.gdpImpact} />
+				<EconomicImpactNote value={billAnalysis.gdpImpact} />
 				<AnalysisNote label="Current read" value={billAnalysis.stageExplanation} />
 				<AnalysisNote label="Movement so far" value={billAnalysis.movementSummary} />
 				<AnalysisNote label="Record coverage" value={billAnalysis.recordCoverage} />
@@ -1572,6 +1762,20 @@ function AnalysisNote({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-bg)] p-3">
 			<p className="bz-eyebrow text-[0.55rem]">{label}</p>
+			<p className="mt-1 text-[12px] leading-5 text-[var(--bz-text-2)]">{value}</p>
+		</div>
+	);
+}
+
+function EconomicImpactNote({ value }: { value: string }) {
+	return (
+		<div className="rounded-md border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<p className="bz-eyebrow text-[0.55rem] text-emerald-800 dark:text-emerald-300">GDP / economic impact</p>
+				<span className="rounded border border-emerald-200 bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+					qualitative
+				</span>
+			</div>
 			<p className="mt-1 text-[12px] leading-5 text-[var(--bz-text-2)]">{value}</p>
 		</div>
 	);
@@ -1620,28 +1824,59 @@ function getBillAgeYears(bill: Bill) {
 function getGdpImpactFallback(bill: Bill) {
 	const ministry = ministryLabel(bill.ministry);
 	const normalizedTitle = getBillTitle(bill, 'en').toLowerCase();
+	const normalizedSummary = bill.summary?.toLowerCase() ?? '';
+	const combinedText = `${normalizedTitle} ${normalizedSummary} ${ministry.toLowerCase()}`;
 	const ageYears = getBillAgeYears(bill);
 	const isOlderThanTenYears = ageYears !== null && ageYears >= 10;
-	const ageFrame = isOlderThanTenYears ? 'retrospective, long-run' : 'near-term';
-	const evidenceLimit = 'No GDP number is available from the current bill record, so this is a qualitative impact read until GDP, budget, sector-output, or implementation data is connected.';
+	const timing = isOlderThanTenYears ? 'Long-run read' : 'Near-term read';
+	const evidenceLimit = bill.summary && !isGeneratedSansadSummary(bill.summary)
+		? 'Confidence is medium because the record has a usable summary, but no linked GDP, budget, or sector-output series yet.'
+		: 'Confidence is low until the bill text, budget notes, and sector data are connected.';
+	const channelRules: Array<{ match: RegExp; channel: string; direction: string; followUp: string }> = [
+		{
+			match: /appropriation|finance bill|tax|gst|customs|excise|budget|cess|finance/,
+			channel: 'fiscal policy, tax administration, public spending, borrowing needs, and disposable income',
+			direction: 'impact can be direct if rates, exemptions, or authorised expenditure change',
+			followUp: 'compare the bill clauses with Budget documents, tax receipts, and expenditure heads'
+		},
+		{
+			match: /company|corporate|insolvency|competition|commerce|industry|sez|special economic zone|investment/,
+			channel: 'business compliance costs, market entry, credit recovery, investment confidence, and formal-sector productivity',
+			direction: 'impact is usually indirect through firm behaviour and transaction costs',
+			followUp: 'check affected company, insolvency, competition, or sector-regulation provisions'
+		},
+		{
+			match: /health|medical|education|skill|university|school|labour|employment|workers|wage/,
+			channel: 'human capital, workforce participation, productivity, household costs, and public-service capacity',
+			direction: 'impact is generally medium-to-long run unless the bill changes large public spending or employer costs',
+			followUp: 'link provisions to enrolment, health access, labour-market, or scheme-spending indicators'
+		},
+		{
+			match: /transport|highway|rail|shipping|port|aviation|airport|power|electricity|energy|infrastructure|telecom/,
+			channel: 'infrastructure capacity, logistics costs, energy reliability, private investment, and sector productivity',
+			direction: 'impact can be material where the bill changes pricing, approvals, safety, or regulator powers',
+			followUp: 'connect the bill to project pipelines, tariffs, regulator orders, and sector output'
+		},
+		{
+			match: /agriculture|farm|fisher|animal husbandry|dairy|food|rural|land|water|environment|forest|climate/,
+			channel: 'rural incomes, land or resource use, food supply, environmental compliance, and climate-risk exposure',
+			direction: 'impact depends on whether the bill changes producer incentives, permits, compensation, or compliance costs',
+			followUp: 'check commodity prices, rural scheme spending, environmental clearance, and affected producer groups'
+		},
+		{
+			match: /home affairs|criminal|police|security|migration|citizenship|border|justice|court|tribunal|contract/,
+			channel: 'administrative certainty, dispute resolution, enforcement costs, migration rules, and investor or citizen compliance burden',
+			direction: 'GDP impact is mostly indirect unless enforcement costs or business/legal certainty change at scale',
+			followUp: 'map affected procedures, penalties, court capacity, and compliance obligations'
+		}
+	];
+	const selected = channelRules.find((rule) => rule.match.test(combinedText)) ?? {
+		channel: `public spending, compliance costs, investment incentives, productivity, and demand in ${ministry}`,
+		direction: `impact depends on whether this ${billTypeLabelsLocalized.en[bill.bill_type].toLowerCase()} changes obligations, funding, or implementation rules`,
+		followUp: 'extract the bill PDF into clauses and connect it to budget or sector indicators'
+	};
 
-	if (normalizedTitle.includes('appropriation') || normalizedTitle.includes('finance bill') || ministry.toLowerCase().includes('finance')) {
-		return `Likely ${ageFrame} GDP channels include public spending, taxation, borrowing, fiscal administration, and effects on private demand or investment. ${evidenceLimit}`;
-	}
-
-	if (normalizedTitle.includes('company') || ministry.toLowerCase().includes('corporate') || ministry.toLowerCase().includes('commerce')) {
-		return `Likely ${ageFrame} GDP channels include business compliance costs, investment conditions, market entry, productivity, and formal-sector activity. ${evidenceLimit}`;
-	}
-
-	if (ministry.toLowerCase().includes('health') || ministry.toLowerCase().includes('education')) {
-		return `Likely ${ageFrame} GDP channels include human-capital formation, labour productivity, household costs, and public-service capacity. ${evidenceLimit}`;
-	}
-
-	if (ministry.toLowerCase().includes('transport') || ministry.toLowerCase().includes('power') || ministry.toLowerCase().includes('infrastructure')) {
-		return `Likely ${ageFrame} GDP channels include infrastructure capacity, logistics costs, energy reliability, private investment, and sector productivity. ${evidenceLimit}`;
-	}
-
-	return `Likely ${ageFrame} GDP channels depend on whether this ${billTypeLabelsLocalized.en[bill.bill_type].toLowerCase()} changes public spending, compliance costs, investment incentives, productivity, or demand in ${ministry}. ${evidenceLimit}`;
+	return `${timing}: the main GDP channels are ${selected.channel}. Expected direction: ${selected.direction}. Evidence: ${evidenceLimit} Next data to add: ${selected.followUp}.`;
 }
 
 function inferBillBrief(bill: Bill, language: Language) {
@@ -1802,6 +2037,80 @@ function getNextWatchItems(bill: Bill, actions: BillAction[], language: Language
 	];
 }
 
+function ActDetailPanel({ act, linkedBill, filters, onNavigate }: { act: Act | null; linkedBill: Bill | null; filters: DashboardFilters; onNavigate: NavigateHandler }) {
+	if (!act) {
+		return (
+			<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
+				<div className="p-4">
+					<p className="bz-eyebrow text-[var(--bz-accent)]">Act detail</p>
+					<h2 className="mt-3 text-lg font-semibold text-[var(--bz-text-1)]">Select an Act</h2>
+					<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">Choose an Act record to inspect its Act number, text source, and originating Bill.</p>
+				</div>
+			</aside>
+		);
+	}
+
+	const linkedBillHref = linkedBill ? hrefForBill(filters, linkedBill.id) : null;
+
+	return (
+		<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
+			<div className="border-b border-[var(--bz-border)] bg-[var(--bz-surface)] px-4 py-3">
+				<div className="flex flex-wrap items-center gap-2">
+					<span className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-800">Act published</span>
+					<span className="rounded border border-[var(--bz-border)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]">{act.year}</span>
+					{act.isDemoSeed && <span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]">Sandbox record</span>}
+				</div>
+				<h2 className="mt-3 text-lg font-bold leading-6 text-[var(--bz-text-1)]">{act.title}</h2>
+				<p className="mt-1 text-xs text-[var(--bz-text-2)]">{act.act_number}</p>
+			</div>
+
+			<div className="p-4">
+				<div className="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-accent-3)] p-3">
+					<p className="bz-eyebrow text-[0.55rem] text-[var(--bz-accent)]">Act record</p>
+					<p className="mt-2 text-[13px] leading-6 text-[var(--bz-text-1)]">
+						This record tracks the enacted law and its official text source. Use the linked Bill below to inspect the parliamentary movement that produced it.
+					</p>
+				</div>
+
+				<dl className="mt-5 grid grid-cols-2 gap-2 text-xs">
+					<DetailTerm label="Act number" value={act.act_number} mono />
+					<DetailTerm label="Year" value={String(act.year)} />
+					<DetailTerm label="Linked Bill ID" value={act.linked_bill_id} mono />
+					<DetailTerm label="Record type" value="Enacted law" />
+				</dl>
+
+				{linkedBill && (
+					<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+						<p className="bz-eyebrow text-[0.55rem]">Originating Bill</p>
+						<a
+							className="mt-2 block text-sm font-semibold leading-5 text-[var(--bz-text-1)] transition hover:text-[var(--bz-accent)] bz-focus"
+							href={linkedBillHref ?? undefined}
+							onClick={(event) => {
+								if (!linkedBillHref || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+								event.preventDefault();
+								onNavigate(linkedBillHref);
+							}}
+						>
+							{getBillTitle(linkedBill, filters.language)}
+						</a>
+						<div className="mt-3 flex flex-wrap items-center gap-2">
+							<StatusBadge stage={linkedBill.current_stage} language={filters.language} />
+							<span className={cx('rounded px-1.5 py-0.5 text-[10px] font-semibold', ministryTone(linkedBill.ministry))}>{ministryLabel(linkedBill.ministry)}</span>
+							<span className="text-[11px] text-[var(--bz-text-3)]">{houseLabelsLocalized[filters.language][linkedBill.origin_house]}</span>
+						</div>
+						<p className="mt-3 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{linkedBill.summary}</p>
+					</div>
+				)}
+
+				<div className="mt-5 flex flex-wrap gap-2">
+					<SourceBadge url={act.india_code_url} kind="india-code" label="Act text" isDemoSeed={act.isDemoSeed} />
+					{linkedBill && <SourceBadge url={linkedBill.source_url} isDemoSeed={linkedBill.isDemoSeed} />}
+				</div>
+			</div>
+		</aside>
+	);
+}
+
 function BillDetailPanel({
 	bill,
 	actions = [],
@@ -1851,7 +2160,7 @@ function BillDetailPanel({
 					<p className="mt-3 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{billAnalysis.whyItMatters}</p>
 				</div>
 				<div className="mt-3 grid gap-2">
-					<AnalysisNote label="GDP / economic impact" value={billAnalysis.gdpImpact} />
+					<EconomicImpactNote value={billAnalysis.gdpImpact} />
 					<AnalysisNote label="Current read" value={billAnalysis.stageExplanation} />
 					<AnalysisNote label="Movement so far" value={billAnalysis.movementSummary} />
 					<AnalysisNote label="Data quality" value={billAnalysis.dataQuality} />

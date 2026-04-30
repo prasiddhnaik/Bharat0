@@ -20,6 +20,7 @@ import {
 } from '$lib/ingestion/source-adapters';
 import { buildTimelineDateRail, groupTimelineEventsByDate } from '$lib/domain/timeline-view';
 import { getPrimeMinisterTermDateRange, PRIME_MINISTER_TERMS, type PrimeMinisterFilter } from '$lib/domain/prime-ministers';
+import { getSourceUrlPatternsForFilter } from '$lib/domain/source-filters';
 
 export type RepositoryMode = 'seed' | 'prisma';
 
@@ -130,6 +131,39 @@ const repositorySources: SourceEntry[] = [
 
 const repositoryDebates: Debate[] = [];
 
+function sourceUrlWhereForFilter(sourceFilter: string, fieldName = 'source_url') {
+	if (sourceFilter === 'all') return {};
+	const patterns = getSourceUrlPatternsForFilter(sourceFilter);
+	if (patterns.length === 0) {
+		return { id: '__no_source_match__' };
+	}
+
+	if (patterns.length === 1) {
+		return { [fieldName]: { contains: patterns[0], mode: 'insensitive' } };
+	}
+
+	return {
+		OR: patterns.map((pattern) => ({ [fieldName]: { contains: pattern, mode: 'insensitive' } }))
+	};
+}
+
+function actWhereForSourceFilter(sourceFilter: string) {
+	if (sourceFilter === 'all') return {};
+	return {
+		OR: [
+			sourceUrlWhereForFilter(sourceFilter, 'india_code_url'),
+			{ linked_bill: sourceUrlWhereForFilter(sourceFilter, 'source_url') }
+		]
+	};
+}
+
+function mergeWhereClauses(...clauses: Array<Record<string, unknown>>) {
+	const activeClauses = clauses.filter((clause) => Object.keys(clause).length > 0);
+	if (activeClauses.length === 0) return {};
+	if (activeClauses.length === 1) return activeClauses[0];
+	return { AND: activeClauses };
+}
+
 export type DashboardRepositoryResult = DashboardData & {
 	dataSource: DataSourceMeta;
 };
@@ -148,6 +182,10 @@ type FindManyModel<Row> = {
 	findMany(args?: unknown): Promise<Row[]>;
 };
 
+type CountModel = {
+	count(args?: unknown): Promise<number>;
+};
+
 type PrismaReadClient = {
 	bill: FindManyModel<Parameters<typeof toDomainBill>[0]> & {
 		count(args?: unknown): Promise<number>;
@@ -159,7 +197,7 @@ type PrismaReadClient = {
 	sittingDay: FindManyModel<Parameters<typeof toDomainSittingDay>[0]>;
 	committee: FindManyModel<Parameters<typeof toDomainCommittee>[0]>;
 	question: FindManyModel<Parameters<typeof toDomainQuestion>[0]>;
-	act: FindManyModel<Parameters<typeof toDomainAct>[0]>;
+	act: FindManyModel<Parameters<typeof toDomainAct>[0]> & CountModel;
 };
 
 function createSeedRepository(): LegislativeRepository {
@@ -203,52 +241,71 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				...(pmDateRange.endDate ? { lt: new Date(`${pmDateRange.endDate}T00:00:00.000Z`) } : {})
 			};
 			const primeMinisterWhere = Object.keys(primeMinisterDateWhere).length > 0 ? { introduced_on: primeMinisterDateWhere } : {};
-			const billStageCountWhere = {
-				...primeMinisterWhere,
-				...(filters.house === 'all' ? {} : { origin_house: fromDomainHouse(filters.house) }),
-				...(filters.area === 'all' ? {} : { ministry: filters.area }),
-				...(filters.query.trim()
-					? {
-							OR: [
-								{ title_en: { contains: filters.query, mode: 'insensitive' } },
-								{ title_hi: { contains: filters.query } },
-								{ ministry: { contains: filters.query, mode: 'insensitive' } }
-							]
-						}
-					: {})
-			};
-			const billAreaCountWhere = {
-				...primeMinisterWhere,
-				...(filters.house === 'all' ? {} : { origin_house: fromDomainHouse(filters.house) }),
-				...(filters.status === 'all' ? {} : { current_stage: fromDomainBillStage(filters.status) }),
-				...(filters.query.trim()
-					? {
-							OR: [
-								{ title_en: { contains: filters.query, mode: 'insensitive' } },
-								{ title_hi: { contains: filters.query } },
-								{ ministry: { contains: filters.query, mode: 'insensitive' } }
-							]
-						}
-					: {})
-			};
-			const billWhere = {
-				...billStageCountWhere,
-				...(filters.status === 'all' ? {} : { current_stage: fromDomainBillStage(filters.status) })
-			};
-			const primeMinisterCountBaseWhere = {
-				...(filters.house === 'all' ? {} : { origin_house: fromDomainHouse(filters.house) }),
-				...(filters.area === 'all' ? {} : { ministry: filters.area }),
-				...(filters.status === 'all' ? {} : { current_stage: fromDomainBillStage(filters.status) }),
-				...(filters.query.trim()
-					? {
-							OR: [
-								{ title_en: { contains: filters.query, mode: 'insensitive' } },
-								{ title_hi: { contains: filters.query } },
-								{ ministry: { contains: filters.query, mode: 'insensitive' } }
-							]
-						}
-					: {})
-			};
+			const sourceBillWhere = sourceUrlWhereForFilter(filters.source);
+			const sourceActWhere = actWhereForSourceFilter(filters.source);
+			const billSearchWhere = filters.query.trim()
+				? {
+						OR: [
+							{ title_en: { contains: filters.query, mode: 'insensitive' } },
+							{ title_hi: { contains: filters.query } },
+							{ ministry: { contains: filters.query, mode: 'insensitive' } }
+						]
+					}
+				: {};
+			const billStageCountWhere = mergeWhereClauses(
+				sourceBillWhere,
+				primeMinisterWhere,
+				filters.house === 'all' ? {} : { origin_house: fromDomainHouse(filters.house) },
+				filters.area === 'all' ? {} : { ministry: filters.area },
+				billSearchWhere
+			);
+			const billAreaCountWhere = mergeWhereClauses(
+				sourceBillWhere,
+				primeMinisterWhere,
+				filters.house === 'all' ? {} : { origin_house: fromDomainHouse(filters.house) },
+				filters.status === 'all' ? {} : { current_stage: fromDomainBillStage(filters.status) },
+				billSearchWhere
+			);
+			const billWhere = mergeWhereClauses(
+				billStageCountWhere,
+				filters.status === 'all' ? {} : { current_stage: fromDomainBillStage(filters.status) }
+			);
+			const primeMinisterCountBaseWhere = mergeWhereClauses(
+				sourceBillWhere,
+				filters.house === 'all' ? {} : { origin_house: fromDomainHouse(filters.house) },
+				filters.area === 'all' ? {} : { ministry: filters.area },
+				filters.status === 'all' ? {} : { current_stage: fromDomainBillStage(filters.status) },
+				billSearchWhere
+			);
+			const actLinkedBillWhere = mergeWhereClauses(
+				primeMinisterWhere,
+				filters.house === 'all' ? {} : { origin_house: fromDomainHouse(filters.house) },
+				filters.area === 'all' ? {} : { ministry: filters.area },
+				filters.status === 'all' ? {} : { current_stage: fromDomainBillStage(filters.status) }
+			);
+			const actQueryWhere = filters.query.trim()
+				? {
+						OR: [
+							{ title: { contains: filters.query, mode: 'insensitive' } },
+							{ act_number: { contains: filters.query, mode: 'insensitive' } },
+							...(Number.isFinite(Number.parseInt(filters.query, 10)) ? [{ year: Number.parseInt(filters.query, 10) }] : []),
+							{
+								linked_bill: {
+									OR: [
+										{ title_en: { contains: filters.query, mode: 'insensitive' } },
+										{ title_hi: { contains: filters.query } },
+										{ ministry: { contains: filters.query, mode: 'insensitive' } }
+									]
+								}
+							}
+						]
+					}
+				: {};
+			const actWhere = mergeWhereClauses(
+				sourceActWhere,
+				Object.keys(actLinkedBillWhere).length > 0 ? { linked_bill: actLinkedBillWhere } : {},
+				actQueryWhere
+			);
 				const billFindArgs = {
 					where: billWhere,
 					orderBy: { latest_action_date: 'desc' },
@@ -256,12 +313,18 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 					...(filters.section === 'bills' ? { skip: (filters.page - 1) * filters.pageSize, take: filters.pageSize } : {})
 				};
 				const timelineFindArgs = {
-					where: {
-						...(filters.house === 'all' ? {} : { house: fromDomainHouse(filters.house) }),
-						...(Object.keys(primeMinisterDateWhere).length > 0 ? { date: primeMinisterDateWhere } : {})
-					},
+					where: mergeWhereClauses(
+						sourceUrlWhereForFilter(filters.source),
+						filters.house === 'all' ? {} : { house: fromDomainHouse(filters.house) },
+						Object.keys(primeMinisterDateWhere).length > 0 ? { date: primeMinisterDateWhere } : {}
+					),
 					orderBy: { date: 'desc' },
 					...(filters.section === 'overview' ? { take: 24 } : {})
+				};
+				const actFindArgs = {
+					where: actWhere,
+					orderBy: [{ year: 'desc' }, { title: 'asc' }],
+					...(filters.section === 'acts' ? { skip: (filters.page - 1) * filters.pageSize, take: filters.pageSize } : {})
 				};
 
 			const [
@@ -274,14 +337,15 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				filteredBillsTracked,
 				stageCountRows,
 				areaCountRows,
-				primeMinisterCounts
+				primeMinisterCounts,
+				filteredActsTracked
 				] = await Promise.all([
 					shouldFetchBills ? prisma.bill.findMany(billFindArgs) : Promise.resolve([]),
 					needsTimeline ? prisma.timelineEvent.findMany(timelineFindArgs) : Promise.resolve([]),
 					needsTimeline ? prisma.sittingDay.findMany({ orderBy: { date: 'desc' }, ...(filters.section === 'overview' ? { take: 120 } : {}) }) : Promise.resolve([]),
-				needsCommittees ? prisma.committee.findMany({ orderBy: { name: 'asc' } }) : Promise.resolve([]),
-				needsQuestions ? prisma.question.findMany({ orderBy: { date: 'desc' } }) : Promise.resolve([]),
-				needsActs ? prisma.act.findMany({ orderBy: { year: 'desc' } }) : Promise.resolve([]),
+				needsCommittees ? prisma.committee.findMany({ where: sourceUrlWhereForFilter(filters.source), orderBy: { name: 'asc' } }) : Promise.resolve([]),
+				needsQuestions ? prisma.question.findMany({ where: sourceUrlWhereForFilter(filters.source), orderBy: { date: 'desc' } }) : Promise.resolve([]),
+				needsActs ? prisma.act.findMany(actFindArgs) : Promise.resolve([]),
 				prisma.bill.count({ where: billWhere }),
 				prisma.bill.groupBy({ by: ['current_stage'], where: billStageCountWhere, _count: { _all: true } }),
 				prisma.bill.groupBy({ by: ['ministry'], where: billAreaCountWhere, _count: { _all: true } }),
@@ -300,7 +364,8 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 						});
 						return { id: term.id, count };
 					})
-				)
+				),
+				needsActs ? prisma.act.count({ where: actWhere }) : Promise.resolve(0)
 			]);
 
 			const query = filters.query.trim().toLowerCase();
@@ -319,6 +384,11 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 			});
 			const sittingDays = sittingDayRows.map(toDomainSittingDay);
 			const committees = committeeRows.map(toDomainCommittee);
+			const acts = actRows.map(toDomainAct);
+			const actLinkedBillIds = [...new Set(acts.map((act) => act.linked_bill_id))];
+			const actBillRows = actLinkedBillIds.length > 0
+				? await prisma.bill.findMany({ where: { id: { in: actLinkedBillIds } } })
+				: [];
 
 				return {
 					seedMeta: repositorySeedMeta,
@@ -332,8 +402,8 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				pagination: {
 					page: filters.page,
 					pageSize: filters.pageSize,
-					totalItems: filters.section === 'bills' ? filteredBillsTracked : billRows.length,
-					totalPages: Math.max(1, Math.ceil((filters.section === 'bills' ? filteredBillsTracked : billRows.length) / filters.pageSize))
+					totalItems: filters.section === 'acts' ? filteredActsTracked : filteredBillsTracked,
+					totalPages: Math.max(1, Math.ceil((filters.section === 'acts' ? filteredActsTracked : filteredBillsTracked) / filters.pageSize))
 				},
 				stageCounts: stageCountRows.map((row) => ({ stage: toDomainBillStage(row.current_stage ?? 'INTRODUCED'), count: row._count._all })),
 				areaCounts: areaCountRows.map((row) => ({ area: row.ministry ?? '', count: row._count._all })).filter((row) => row.area),
@@ -356,7 +426,8 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 					committees,
 					questions: questionRows.map(toDomainQuestion),
 					debates: repositoryDebates,
-					acts: actRows.map(toDomainAct),
+					acts,
+					actBills: actBillRows.map(toDomainBill),
 					sources: repositorySources,
 					ingestion: {
 					adapters: getPreparedSourceAdapters(),
