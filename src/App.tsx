@@ -397,9 +397,10 @@ function App() {
 			query={dashboard.filters.query}
 			language={dashboard.filters.language}
 			dashboard={dashboard}
-			leftPanel={dashboard.filters.section === 'acts' ? <ActDetailPanel act={selectedAct} linkedBill={selectedActLinkedBill} filters={dashboard.filters} onNavigate={navigateInApp} /> : undefined}
 			aside={
-				dashboard.filters.section === 'bills' ? (
+				dashboard.filters.section === 'acts' ? (
+					<ActDetailPanel act={selectedAct} linkedBill={selectedActLinkedBill} filters={dashboard.filters} onNavigate={navigateInApp} />
+				) : dashboard.filters.section === 'bills' ? (
 					<BillDetailPanel bill={selectedBillForRender?.bill ?? null} actions={selectedBillForRender?.actions ?? []} language={dashboard.filters.language} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
 				) : null
 			}
@@ -848,7 +849,6 @@ function AppShell({
 	language,
 	dashboard,
 	children,
-	leftPanel,
 	aside
 }: {
 	section: SectionId;
@@ -856,7 +856,6 @@ function AppShell({
 	language: Language;
 	dashboard: AppDashboardData;
 	children: React.ReactNode;
-	leftPanel?: React.ReactNode;
 	aside?: React.ReactNode;
 }) {
 	const [darkMode, setDarkMode] = useState(false);
@@ -943,14 +942,14 @@ function AppShell({
 					'grid h-[calc(100dvh-2.75rem)] min-h-0 grid-cols-1 overflow-hidden',
 					sidebarCollapsed
 						? hasAside
-							? 'lg:grid-cols-[minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_340px]'
+							? 'lg:grid-cols-[minmax(0,1fr)_340px]'
 							: 'lg:grid-cols-[minmax(0,1fr)]'
 						: hasAside
-							? 'lg:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_340px]'
+							? 'lg:grid-cols-[260px_minmax(0,1fr)_340px]'
 							: 'lg:grid-cols-[260px_minmax(0,1fr)]'
 				)}
 			>
-				{!sidebarCollapsed && (leftPanel ?? <LeftSidebar cabinetOpen={cabinetOpen} setCabinetOpen={setCabinetOpen} dashboard={dashboard} language={language} />)}
+				{!sidebarCollapsed && <LeftSidebar cabinetOpen={cabinetOpen} setCabinetOpen={setCabinetOpen} dashboard={dashboard} language={language} />}
 				<main className="min-h-0 min-w-0 overflow-y-auto">
 					<div className="mx-auto max-w-[1120px] space-y-3 p-3 lg:p-4">
 						<div className="md:hidden">
@@ -959,7 +958,7 @@ function AppShell({
 						{children}
 					</div>
 				</main>
-				{hasAside && <div className="hidden min-h-0 min-w-0 overflow-y-auto border-l border-[var(--bz-border)] bg-[var(--bz-surface)] 2xl:block">{aside}</div>}
+				{hasAside && <div className="hidden min-h-0 min-w-0 overflow-y-auto border-l border-[var(--bz-border)] bg-[var(--bz-surface)] lg:block">{aside}</div>}
 			</div>
 		</div>
 	);
