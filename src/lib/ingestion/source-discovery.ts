@@ -1,4 +1,5 @@
 import type { AdapterOutput, OfficialSourceAdapter } from './source-adapters';
+import type { DataGovCatalogMetadata, PdlDiscoveryMetadata } from './source-metadata';
 
 export type DiscoveryTargetKind = 'catalog' | 'api-catalog' | 'committee-surface' | 'document-library';
 
@@ -20,39 +21,52 @@ export type SourceDiscoveryResult = SourceDiscoveryTarget & {
 	finalUrl: string | null;
 	title: string | null;
 	signals: string[];
+	metadata?: {
+		dataGovCatalog?: DataGovCatalogMetadata;
+		pdl?: PdlDiscoveryMetadata;
+	};
 	error?: string;
 };
 
-export const dataGovDiscoveryTargets: SourceDiscoveryTarget[] = [
-	{
-		id: 'data-gov-rs-questions-session-267',
+function rajyaSabhaQuestionSessionTarget(session: number): SourceDiscoveryTarget {
+	const slug = `answers-data-rajya-sabha-questions-session-${session}`;
+
+	return {
+		id: `data-gov-rs-questions-session-${session}`,
 		adapterId: 'data-gov',
-		name: 'Rajya Sabha question-answer annexures, Session 267',
-		url: 'https://punjab.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-267',
+		name: `Rajya Sabha question-answer annexures, Session ${session}`,
+		url: `https://www.data.gov.in/catalog/${slug}`,
 		fallbackUrls: [
-			'https://www.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-267',
-			'https://ap.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-267'
+			`https://punjab.data.gov.in/catalog/${slug}`,
+			`https://delhi.data.gov.in/catalog/${slug}`,
+			`https://ap.data.gov.in/catalog/${slug}`
 		],
 		kind: 'catalog',
 		outputs: ['questions', 'timeline_events'],
 		authority: 'open-data',
 		notes: 'Session-level catalog for Rajya Sabha question-answer annexure datasets; use as structured supplemental data linked back to Sansad question records.'
-	},
-	{
-		id: 'data-gov-rs-questions-session-265',
-		adapterId: 'data-gov',
-		name: 'Rajya Sabha question-answer annexures, Session 265',
-		url: 'https://punjab.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-265',
-		fallbackUrls: [
-			'https://delhi.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-265',
-			'https://www.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-265',
-			'https://ap.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-265'
-		],
-		kind: 'catalog',
-		outputs: ['questions', 'timeline_events'],
-		authority: 'open-data',
-		notes: 'Recent stable question-answer annexure catalog with Catalog API and Zip Download surfaces.'
-	},
+	};
+}
+
+export const dataGovDiscoveryTargets: SourceDiscoveryTarget[] = [
+	...[
+		249,
+		250,
+		251,
+		253,
+		254,
+		255,
+		256,
+		257,
+		258,
+		259,
+		260,
+		262,
+		263,
+		265,
+		266,
+		267
+	].map(rajyaSabhaQuestionSessionTarget),
 	{
 		id: 'data-gov-rs-debates-english',
 		adapterId: 'data-gov',
@@ -115,6 +129,26 @@ export const sansadCommitteeDiscoveryTargets: SourceDiscoveryTarget[] = [
 		outputs: ['committee_reports', 'timeline_events'],
 		authority: 'union-parliament',
 		notes: 'Known PDL committee-report document pattern; use for PDF/report capture after metadata discovery.'
+	},
+	{
+		id: 'pdl-ls-transcript-search',
+		adapterId: 'lok-sabha',
+		name: 'Parliament Digital Library transcript search',
+		url: 'https://eparlib.sansad.in/simple-search?query=transcript&filter_field_1=type&filter_type_1=equals&filter_value_1=Part+2%28Other+than+Questions+And+Answers%29&rpp=20&sort_by=dc.date_dt&order=desc',
+		kind: 'document-library',
+		outputs: ['debates', 'timeline_events'],
+		authority: 'union-parliament',
+		notes: 'PDL search for transcript-backed debate entries; exposes handles, titles, dates, debate facets, Lok Sabha numbers, and PDF bitstreams on item pages.'
+	},
+	{
+		id: 'pdl-ls-government-bill-debates',
+		adapterId: 'lok-sabha',
+		name: 'Parliament Digital Library government Bill debates',
+		url: 'https://eparlib.sansad.in/simple-search?query=transcript&filter_field_1=type&filter_type_1=equals&filter_value_1=Part+2%28Other+than+Questions+And+Answers%29&filter_field_2=debate&filter_type_2=equals&filter_value_2=GOVERNMENT+BILLS&rpp=20&sort_by=dc.date_dt&order=desc',
+		kind: 'document-library',
+		outputs: ['bills', 'debates', 'timeline_events'],
+		authority: 'union-parliament',
+		notes: 'Focused PDL search for government Bill debate transcripts that can enrich bill-stage evidence with source handles and PDF transcript links.'
 	}
 ];
 

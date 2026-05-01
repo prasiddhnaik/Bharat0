@@ -7,10 +7,12 @@ import {
 	type SourceDiscoveryResult,
 	type SourceDiscoveryTarget
 } from '../src/lib/ingestion/source-discovery';
+import { extractDataGovCatalogMetadata, extractPdlDiscoveryMetadata } from '../src/lib/ingestion/source-metadata';
 
 const OUTPUT_PATH = 'artifacts/source-discovery/latest.json';
 const USER_AGENT = 'BharatZero source discovery audit';
-const FETCH_TIMEOUT_MS = 20_000;
+const FETCH_TIMEOUT_MS = 45_000;
+const INSPECTION_CONCURRENCY = 4;
 
 function hasFlag(name: string) {
 	return process.argv.includes(name);
@@ -77,13 +79,20 @@ async function inspectTarget(target: SourceDiscoveryTarget): Promise<SourceDisco
 			const title = $('title').first().text().replace(/\s+/g, ' ').trim() || null;
 
 			if (response.ok) {
+				const finalUrl = response.url;
+				const metadata: SourceDiscoveryResult['metadata'] = {};
+				const dataGovCatalog = extractDataGovCatalogMetadata(html, finalUrl);
+				if (dataGovCatalog) metadata.dataGovCatalog = dataGovCatalog;
+				if (finalUrl.includes('eparlib.sansad.in')) metadata.pdl = extractPdlDiscoveryMetadata(html, finalUrl);
+
 				return {
 					...target,
 					ok: true,
 					status: response.status,
-					finalUrl: response.url,
+					finalUrl,
 					title,
-					signals: extractSignals({ ...target, url }, html)
+					signals: extractSignals({ ...target, url }, html),
+					...(Object.keys(metadata).length > 0 ? { metadata } : {})
 				};
 			}
 
@@ -104,8 +113,24 @@ async function inspectTarget(target: SourceDiscoveryTarget): Promise<SourceDisco
 	}
 }
 
+async function inspectTargets(targets: SourceDiscoveryTarget[]) {
+	const results: SourceDiscoveryResult[] = [];
+	let nextIndex = 0;
+
+	async function worker() {
+		while (nextIndex < targets.length) {
+			const index = nextIndex;
+			nextIndex += 1;
+			results[index] = await inspectTarget(targets[index]);
+		}
+	}
+
+	await Promise.all(Array.from({ length: Math.min(INSPECTION_CONCURRENCY, targets.length) }, worker));
+	return results;
+}
+
 async function main() {
-	const results = await Promise.all(sourceDiscoveryTargets.map(inspectTarget));
+	const results = await inspectTargets(sourceDiscoveryTargets);
 	const payload = {
 		generatedAt: new Date().toISOString(),
 		targetCount: sourceDiscoveryTargets.length,

@@ -187,10 +187,10 @@ The current adapter contract pipeline is:
 
 Additional source-discovery setup now exists for:
 
-- `data.gov.in` Rajya Sabha question-answer annexure catalogs.
+- `data.gov.in` Rajya Sabha question-answer annexure catalogs across Sessions 249-267 where public catalog metadata is exposed.
 - `data.gov.in` Lok Sabha and Rajya Sabha verbatim debate catalogs.
 - Sansad Bill surfaces that expose committee references, Act linkage, assent, and gazette fields.
-- Parliament Digital Library committee-report document patterns.
+- Parliament Digital Library committee-report, transcript-search, and government Bill debate document patterns.
 
 Run a non-mutating discovery audit with:
 
@@ -208,4 +208,10 @@ You can verify that no live scraping adapter is registered with:
 
 ```bash
 npm run verify:ingestion
+```
+
+You can verify the source-discovery metadata parsers with:
+
+```bash
+npm run verify:source-discovery
 ```
