@@ -2120,6 +2120,98 @@ const debateBillLinks: Record<string, string> = {
 	'debate-aircraft-objects-bill-introduced': 'protection-of-interests-in-aircraft-objects-bill-2025'
 };
 
+type DebateDetailProfile = {
+	linkedBillTitle: string;
+	sourceRecord: string;
+	proceduralRead: string;
+	whyItMatters: string[];
+	sourceChecks: string[];
+	nextChecks: string[];
+};
+
+const debateDetailProfiles: Record<string, DebateDetailProfile> = {
+	'debate-income-tax-bill-introduced': {
+		linkedBillTitle: 'The Income-Tax Bill, 2025',
+		sourceRecord: 'Parliament Digital Library proceeding for Government Bills on 13 Feb 2025.',
+		proceduralRead: 'This proceeding marks the Bill entering Lok Sabha business. Introduction is the first formal chamber step; it does not mean the Bill was considered clause by clause or passed on that date.',
+		whyItMatters: [
+			'Creates the first official parliamentary timestamp for the Bill.',
+			'Lets the Bill panel connect introduction, committee, and later movement in one trail.',
+			'Helps separate formal introduction from later select committee scrutiny and passage work.'
+		],
+		sourceChecks: [
+			'Exact motion or item text used for introduction.',
+			'Minister or member associated with moving the Bill.',
+			'Whether the source page links to a transcript PDF or only the indexed proceeding entry.'
+		],
+		nextChecks: [
+			'Open the linked Bill to compare introduction against committee and later stage records.',
+			'Add transcript extraction when the source PDF is available.',
+			'Cross-check PRS and Sansad records before using this as a complete debate summary.'
+		]
+	},
+	'debate-dpdp-bill-introduced': {
+		linkedBillTitle: 'The Digital Personal Data Protection Bill, 2023',
+		sourceRecord: 'Parliament Digital Library proceeding for introduction on 3 Aug 2023.',
+		proceduralRead: 'This proceeding records the Bill being introduced in Lok Sabha. It is a stage marker for the start of parliamentary handling, not a full policy debate summary by itself.',
+		whyItMatters: [
+			'Anchors the Bill to a specific Lok Sabha sitting date.',
+			'Gives the debates tab a source-backed entry point for later privacy and data-governance discussion.',
+			'Keeps the introduction source separate from later passage and Act publication sources.'
+		],
+		sourceChecks: [
+			'Whether the indexed proceeding has a transcript PDF with speaker-level text.',
+			'The exact introduction wording and Bill title as printed in the proceeding.',
+			'Any immediate objections, leave motions, or procedural notes on the same page.'
+		],
+		nextChecks: [
+			'Open the linked Bill to inspect party position reasoning and source links.',
+			'Connect later debate, passage, and assent records when source pages are available.',
+			'Add clause-level privacy issues only after text extraction from the Bill or Act source.'
+		]
+	},
+	'debate-tribhuvan-bill-passed': {
+		linkedBillTitle: 'Tribhuvan Sahkari University Bill, 2025',
+		sourceRecord: 'Parliament Digital Library Lok Sabha proceeding for 26 Mar 2025.',
+		proceduralRead: 'This proceeding is a chamber-level passage signal for the Bill in Lok Sabha. It should be read as evidence of Lok Sabha passage, not by itself as final enactment or President assent.',
+		whyItMatters: [
+			'It is the strongest debate-tab signal that the Bill moved beyond introduction in the originating House.',
+			'It gives the Acts and Bills panels a dated parliamentary proceeding to connect with the later law record.',
+			'It helps users separate the passage proceeding from policy support, opposition reasoning, and final Act publication.'
+		],
+		sourceChecks: [
+			'Exact motion text and whether the sitting record says the Bill was passed, passed with amendments, or passed after discussion.',
+			'Speaker names, minister response, opposition interventions, and any recorded division if the transcript includes them.',
+			'Whether the source page exposes a downloadable transcript/PDF beyond the indexed PDL entry.'
+		],
+		nextChecks: [
+			'Open the linked Bill for party support/opposition reasoning and bill-stage context.',
+			'Compare with the Acts tab to confirm the enacted-law record and official text source.',
+			'Add transcript parsing so the panel can show speaker-level debate and amendment details.'
+		]
+	},
+	'debate-aircraft-objects-bill-introduced': {
+		linkedBillTitle: 'Protection of Interests in Aircraft Objects Bill, 2025',
+		sourceRecord: 'PRS bill tracker record for Rajya Sabha introduction on 10 Feb 2025.',
+		proceduralRead: 'This record is a tracker-backed introduction signal for Rajya Sabha. Because it is not a full transcript source, treat it as a stage reference until the chamber proceeding is linked.',
+		whyItMatters: [
+			'Shows the Bill entered Rajya Sabha business on a specific date.',
+			'Connects debate discovery to an aviation-finance Bill that may need official proceeding enrichment.',
+			'Flags a useful gap: the tracker source should be paired with a chamber record when available.'
+		],
+		sourceChecks: [
+			'PRS stage/date entry and linked Bill text or tracker notes.',
+			'Official Rajya Sabha proceeding page for the same introduction date.',
+			'Whether later stages changed the Bill after introduction.'
+		],
+		nextChecks: [
+			'Open the linked Bill to inspect policy area, status, and source trail.',
+			'Add Rajya Sabha transcript/source URL once available.',
+			'Use the current entry as metadata-level evidence until official proceeding text is attached.'
+		]
+	}
+};
+
 function debateStageLabel(debate: Pick<Debate, 'title'>) {
 	const normalizedTitle = debate.title.toLowerCase();
 	if (normalizedTitle.includes('passed')) return 'Passed debate';
@@ -2131,6 +2223,29 @@ function debateSourceLabel(debate: Pick<Debate, 'source_url'>) {
 	const normalizedUrl = debate.source_url.toLowerCase();
 	if (normalizedUrl.includes('eparlib.sansad.in')) return 'Parliament Digital Library';
 	return sourceKindLabels[sourceKindFromUrl(debate.source_url)];
+}
+
+function getDebateDetailProfile(debate: Debate): DebateDetailProfile {
+	return debateDetailProfiles[debate.id] ?? {
+		linkedBillTitle: 'Mapped Bill not identified',
+		sourceRecord: `${debateSourceLabel(debate)} record for ${formatDate(debate.date)}.`,
+		proceduralRead: 'This is a source-backed proceeding entry. The panel can identify the House, date, stage read, and source family, but transcript-level detail still needs extraction from the source page.',
+		whyItMatters: [
+			'Adds a dated proceeding record to the legislative trail.',
+			'Helps users move from a debate hit into the related Bill or source page.',
+			'Keeps source-backed metadata separate from unsourced political interpretation.'
+		],
+		sourceChecks: [
+			'Exact proceeding text, transcript PDF, and speaker names if the source exposes them.',
+			'Whether the proceeding records introduction, consideration, passage, amendment, or another motion.',
+			'Whether a second official source confirms the same stage and date.'
+		],
+		nextChecks: [
+			'Map the proceeding to a Bill record.',
+			'Extract transcript text for speaker-level detail.',
+			'Cross-check later Bill, Act, or Gazette records before treating the proceeding as final status.'
+		]
+	};
 }
 
 function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | null; filters: DashboardFilters; onNavigate: NavigateHandler }) {
@@ -2149,6 +2264,7 @@ function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | n
 	const linkedBillId = debateBillLinks[debate.id];
 	const linkedBillHref = linkedBillId ? hrefForBill(filters, linkedBillId) : null;
 	const stageLabel = debateStageLabel(debate);
+	const detailProfile = getDebateDetailProfile(debate);
 
 	return (
 		<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
@@ -2166,6 +2282,7 @@ function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | n
 				<div className="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-accent-3)] p-3">
 					<p className="bz-eyebrow text-[0.55rem] text-[var(--bz-accent)]">Proceeding read</p>
 					<p className="mt-2 text-[13px] leading-6 text-[var(--bz-text-1)]">{debate.summary}</p>
+					<p className="mt-3 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{detailProfile.proceduralRead}</p>
 				</div>
 
 				<dl className="mt-5 grid grid-cols-2 gap-2 text-xs">
@@ -2176,7 +2293,33 @@ function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | n
 				</dl>
 
 				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+					<p className="bz-eyebrow text-[0.55rem]">Why this proceeding matters</p>
+					<ul className="mt-2 space-y-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+						{detailProfile.whyItMatters.map((item) => (
+							<li className="flex gap-2" key={item}>
+								<span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--bz-accent)]" />
+								<span>{item}</span>
+							</li>
+						))}
+					</ul>
+				</div>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3">
+					<p className="bz-eyebrow text-[0.55rem]">Source can confirm</p>
+					<p className="mt-2 text-[12.5px] font-semibold leading-5 text-[var(--bz-text-1)]">{detailProfile.sourceRecord}</p>
+					<ul className="mt-2 space-y-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+						{detailProfile.sourceChecks.map((item) => (
+							<li className="flex gap-2" key={item}>
+								<span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--bz-text-3)]" />
+								<span>{item}</span>
+							</li>
+						))}
+					</ul>
+				</div>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
 					<p className="bz-eyebrow text-[0.55rem]">Related Bill</p>
+					<p className="mt-2 text-sm font-semibold leading-5 text-[var(--bz-text-1)]">{detailProfile.linkedBillTitle}</p>
 					{linkedBillHref ? (
 						<a
 							className="mt-2 inline-flex rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2 py-1 text-[10.5px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus"
@@ -2192,6 +2335,18 @@ function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | n
 					) : (
 						<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">No linked Bill has been mapped for this debate yet.</p>
 					)}
+				</div>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3">
+					<p className="bz-eyebrow text-[0.55rem]">Next checks</p>
+					<ul className="mt-2 space-y-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+						{detailProfile.nextChecks.map((item) => (
+							<li className="flex gap-2" key={item}>
+								<span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--bz-accent)]" />
+								<span>{item}</span>
+							</li>
+						))}
+					</ul>
 				</div>
 
 				<div className="mt-5">
