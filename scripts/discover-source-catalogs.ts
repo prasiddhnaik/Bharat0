@@ -10,6 +10,7 @@ import {
 
 const OUTPUT_PATH = 'artifacts/source-discovery/latest.json';
 const USER_AGENT = 'BharatZero source discovery audit';
+const FETCH_TIMEOUT_MS = 20_000;
 
 function hasFlag(name: string) {
 	return process.argv.includes(name);
@@ -41,38 +42,65 @@ function extractSignals(target: SourceDiscoveryTarget, html: string) {
 	return Array.from(new Set(signals));
 }
 
-async function inspectTarget(target: SourceDiscoveryTarget): Promise<SourceDiscoveryResult> {
+function discoveryUrlsFor(target: SourceDiscoveryTarget) {
+	return [target.url, ...(target.fallbackUrls ?? [])];
+}
+
+async function fetchHtml(url: string) {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
 	try {
-		const response = await fetch(target.url, {
+		const response = await fetch(url, {
 			headers: {
 				accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 				'accept-language': 'en-IN,en;q=0.9',
 				'user-agent': USER_AGENT
 			},
-			redirect: 'follow'
+			redirect: 'follow',
+			signal: controller.signal
 		});
 		const html = await response.text();
-		const $ = cheerio.load(html);
-		const title = $('title').first().text().replace(/\s+/g, ' ').trim() || null;
+		return { response, html };
+	} finally {
+		clearTimeout(timeout);
+	}
+}
 
-		return {
-			...target,
-			ok: response.ok,
-			status: response.status,
-			finalUrl: response.url,
-			title,
-			signals: response.ok ? extractSignals(target, html) : []
-		};
-	} catch (error) {
-		return {
-			...target,
-			ok: false,
-			status: null,
-			finalUrl: null,
-			title: null,
-			signals: [],
-			error: error instanceof Error ? error.message : String(error)
-		};
+async function inspectTarget(target: SourceDiscoveryTarget): Promise<SourceDiscoveryResult> {
+	const errors: string[] = [];
+
+	for (const url of discoveryUrlsFor(target)) {
+		try {
+			const { response, html } = await fetchHtml(url);
+			const $ = cheerio.load(html);
+			const title = $('title').first().text().replace(/\s+/g, ' ').trim() || null;
+
+			if (response.ok) {
+				return {
+					...target,
+					ok: true,
+					status: response.status,
+					finalUrl: response.url,
+					title,
+					signals: extractSignals({ ...target, url }, html)
+				};
+			}
+
+			errors.push(`${url}: HTTP ${response.status}`);
+		} catch (error) {
+			errors.push(`${url}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	return {
+		...target,
+		ok: false,
+		status: null,
+		finalUrl: null,
+		title: null,
+		signals: [],
+		error: errors.join(' | ')
 	}
 }
 

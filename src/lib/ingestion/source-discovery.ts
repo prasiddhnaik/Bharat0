@@ -7,6 +7,7 @@ export type SourceDiscoveryTarget = {
 	adapterId: OfficialSourceAdapter['id'];
 	name: string;
 	url: string;
+	fallbackUrls?: string[];
 	kind: DiscoveryTargetKind;
 	outputs: AdapterOutput[];
 	authority: OfficialSourceAdapter['authority'];
@@ -28,6 +29,10 @@ export const dataGovDiscoveryTargets: SourceDiscoveryTarget[] = [
 		adapterId: 'data-gov',
 		name: 'Rajya Sabha question-answer annexures, Session 267',
 		url: 'https://punjab.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-267',
+		fallbackUrls: [
+			'https://www.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-267',
+			'https://ap.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-267'
+		],
 		kind: 'catalog',
 		outputs: ['questions', 'timeline_events'],
 		authority: 'open-data',
@@ -37,7 +42,12 @@ export const dataGovDiscoveryTargets: SourceDiscoveryTarget[] = [
 		id: 'data-gov-rs-questions-session-265',
 		adapterId: 'data-gov',
 		name: 'Rajya Sabha question-answer annexures, Session 265',
-		url: 'https://ap.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-265',
+		url: 'https://punjab.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-265',
+		fallbackUrls: [
+			'https://delhi.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-265',
+			'https://www.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-265',
+			'https://ap.data.gov.in/catalog/answers-data-rajya-sabha-questions-session-265'
+		],
 		kind: 'catalog',
 		outputs: ['questions', 'timeline_events'],
 		authority: 'open-data',
@@ -47,7 +57,12 @@ export const dataGovDiscoveryTargets: SourceDiscoveryTarget[] = [
 		id: 'data-gov-rs-debates-english',
 		adapterId: 'data-gov',
 		name: 'Rajya Sabha verbatim debates, English',
-		url: 'https://ap.data.gov.in/catalog/verbatim-debates-rajya-sabha-english',
+		url: 'https://delhi.data.gov.in/catalog/verbatim-debates-rajya-sabha-english',
+		fallbackUrls: [
+			'https://www.data.gov.in/catalog/verbatim-debates-rajya-sabha-english',
+			'https://punjab.data.gov.in/catalog/verbatim-debates-rajya-sabha-english',
+			'https://ap.data.gov.in/catalog/verbatim-debates-rajya-sabha-english'
+		],
 		kind: 'catalog',
 		outputs: ['debates', 'timeline_events'],
 		authority: 'open-data',
@@ -57,7 +72,12 @@ export const dataGovDiscoveryTargets: SourceDiscoveryTarget[] = [
 		id: 'data-gov-ls-debates-english',
 		adapterId: 'data-gov',
 		name: 'Lok Sabha verbatim debates, English',
-		url: 'https://ap.data.gov.in/catalog/verbatim-debates-lok-sabha-english',
+		url: 'https://delhi.data.gov.in/catalog/verbatim-debates-lok-sabha-english',
+		fallbackUrls: [
+			'https://www.data.gov.in/catalog/verbatim-debates-lok-sabha-english',
+			'https://punjab.data.gov.in/catalog/verbatim-debates-lok-sabha-english',
+			'https://ap.data.gov.in/catalog/verbatim-debates-lok-sabha-english'
+		],
 		kind: 'catalog',
 		outputs: ['debates', 'timeline_events'],
 		authority: 'open-data',
