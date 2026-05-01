@@ -160,7 +160,13 @@ assert.equal(actsDashboard.acts[0]?.id, 'official-act-1');
 assert.equal(actsDashboard.pagination.totalItems, 1);
 assert.equal(actsDashboard.pagination.totalPages, 1);
 
-const debatesDashboard = await repository.getDashboardData({
+assert.equal(
+	Object.hasOwn(fakePrisma, 'debate'),
+	false,
+	'debate records are curated fallback data until a Debate model is added to schema.prisma'
+);
+
+const curatedDebatesDashboard = await repository.getDashboardData({
 	section: 'debates',
 	house: 'all',
 	date: '2026-07-20',
@@ -174,7 +180,27 @@ const debatesDashboard = await repository.getDashboardData({
 	pageSize: 10
 });
 
-assert.ok(debatesDashboard.debates.length >= 1, 'expected Prisma repository to expose curated debate records');
-assert.ok(debatesDashboard.debates.some((debate) => debate.title.includes('Tribhuvan Sahkari University Bill')), 'expected debate query to match curated Tribhuvan debate');
+assert.equal(curatedDebatesDashboard.dataSource.mode, 'prisma');
+assert.ok(curatedDebatesDashboard.debates.length >= 1, 'expected Prisma-mode repository to expose curated debate fallback records');
+assert.ok(
+	curatedDebatesDashboard.debates.some((debate) => debate.title.includes('Tribhuvan Sahkari University Bill')),
+	'expected curated debate fallback query to match Tribhuvan debate'
+);
+
+const allDebatesDashboard = await repository.getDashboardData({
+	section: 'debates',
+	house: 'all',
+	date: '2026-07-20',
+	status: 'all',
+	area: 'all',
+	source: 'all',
+	primeMinister: 'all',
+	query: '',
+	language: 'en',
+	page: 1,
+	pageSize: 10
+});
+
+assert.equal(allDebatesDashboard.pagination.totalItems, allDebatesDashboard.debates.length, 'expected Debates pagination total to describe debate records');
 
 console.log('Prisma repository contract checks passed using a fake Prisma client.');

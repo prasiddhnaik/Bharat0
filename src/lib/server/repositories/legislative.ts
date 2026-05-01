@@ -539,22 +539,36 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 			const actBillRows = actLinkedBillIds.length > 0
 				? await prisma.bill.findMany({ where: { id: { in: actLinkedBillIds } } })
 				: [];
+			const paginationTotalItems =
+				filters.section === 'acts'
+					? filteredActsTracked
+					: filters.section === 'debates'
+						? debates.length
+						: filters.section === 'questions'
+							? questionRows.length
+							: filters.section === 'committees'
+								? committees.length
+								: filters.section === 'timeline'
+									? timelineEvents.length
+									: filters.section === 'sources'
+										? repositorySources.length
+										: filteredBillsTracked;
 
-				return {
-					seedMeta: repositorySeedMeta,
-					filters,
-					stats: {
-						billsTracked: totalBillsTracked,
-						filteredBillsTracked,
-						eventsOnDate: timelineEvents.length,
-						committeesTracked: committees.length,
-						preparedSources: repositorySources.length
-					},
+			return {
+				seedMeta: repositorySeedMeta,
+				filters,
+				stats: {
+					billsTracked: totalBillsTracked,
+					filteredBillsTracked,
+					eventsOnDate: timelineEvents.length,
+					committeesTracked: committees.length,
+					preparedSources: repositorySources.length
+				},
 				pagination: {
 					page: filters.page,
 					pageSize: filters.pageSize,
-					totalItems: filters.section === 'acts' ? filteredActsTracked : filteredBillsTracked,
-					totalPages: Math.max(1, Math.ceil((filters.section === 'acts' ? filteredActsTracked : filteredBillsTracked) / filters.pageSize))
+					totalItems: paginationTotalItems,
+					totalPages: Math.max(1, Math.ceil(paginationTotalItems / filters.pageSize))
 				},
 				stageCounts: stageCountRows.map((row) => ({ stage: toDomainBillStage(row.current_stage ?? 'INTRODUCED'), count: row._count._all })),
 				areaCounts: areaCountRows.map((row) => ({ area: row.ministry ?? '', count: row._count._all })).filter((row) => row.area),
@@ -573,14 +587,14 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 					language: filters.language
 				}),
 				allTimelineEvents: [],
-					sittingDays,
-					committees,
-					questions: questionRows.map(toDomainQuestion),
-					debates,
-					acts,
-					actBills: actBillRows.map(toDomainBill),
-					sources: repositorySources,
-					ingestion: {
+				sittingDays,
+				committees,
+				questions: questionRows.map(toDomainQuestion),
+				debates,
+				acts,
+				actBills: actBillRows.map(toDomainBill),
+				sources: repositorySources,
+				ingestion: {
 					adapters: getPreparedSourceAdapters(),
 					outputSummary: getAdapterOutputSummary(),
 					pipelineSteps: ingestionPipelineSteps

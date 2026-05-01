@@ -20,8 +20,9 @@ const dashboard = await repository.getDashboardData({
 
 assert.equal(dashboard.dataSource.mode, 'seed');
 assert.equal(dashboard.dataSource.isLiveOfficialData, false);
-assert.ok(dashboard.bills.length >= 1000, 'expected generated Sansad Bill records');
-assert.equal(dashboard.stats.billsTracked, dashboard.allBills.length, 'expected stats.billsTracked to describe total Bill records');
+assert.ok(dashboard.stats.billsTracked >= 1000, 'expected generated Sansad Bill records');
+assert.ok(dashboard.bills.length <= 5, 'expected overview payload to return only preview Bill records');
+assert.equal(dashboard.allBills.length, 0, 'expected trimmed seed repository payload to omit allBills');
 assert.ok(dashboard.timelineEvents.length >= 1, 'expected seed-backed repository to return timeline events');
 
 const sourceFilteredDashboard = await repository.getDashboardData({
@@ -40,6 +41,22 @@ const sourceFilteredDashboard = await repository.getDashboardData({
 
 assert.ok(sourceFilteredDashboard.pagination.totalItems < sourceFilteredDashboard.stats.billsTracked, 'expected source-filtered pagination to remain separate from total Bill count');
 assert.equal(sourceFilteredDashboard.stats.filteredBillsTracked, sourceFilteredDashboard.pagination.totalItems, 'expected filtered count to match source-filtered pagination total');
+
+const debatesDashboard = await repository.getDashboardData({
+	section: 'debates',
+	house: 'all',
+	date: '2026-07-20',
+	status: 'all',
+	area: 'all',
+	source: 'all',
+	primeMinister: 'all',
+	query: '',
+	language: 'en',
+	page: 1,
+	pageSize: 60
+});
+
+assert.equal(debatesDashboard.pagination.totalItems, debatesDashboard.debates.length, 'expected Debates pagination total to describe debate records');
 
 const detail = await repository.getBillDetail('finance-bill-2025');
 assert.ok(detail, 'expected known official Bill detail');

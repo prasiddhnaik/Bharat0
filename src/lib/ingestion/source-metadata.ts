@@ -50,6 +50,7 @@ export function extractDataGovCatalogMetadata(html: string, pageUrl: string): Da
 
 	const $ = cheerio.load(html);
 	const pageText = $('body').text().replace(/\s+/g, ' ').trim();
+	const unavailableText = /Catalog API is not available/i;
 	const uuid = extractNuxtString(html, 'uuid');
 	const apiPath = uuid ? `/apis/${uuid}` : null;
 	const keywords = (extractNuxtString(html, 'field_keywords') ?? $('meta[name="keywords"]').attr('content') ?? '')
@@ -66,7 +67,7 @@ export function extractDataGovCatalogMetadata(html: string, pageUrl: string): Da
 		keywords: unique(keywords),
 		apiPath,
 		apiUrl: apiPath ? absoluteUrl(apiPath, pageUrl) : null,
-		catalogApiAvailable: !/Catalog API is not available/i.test(pageText),
+		catalogApiAvailable: !unavailableText.test(pageText) && !unavailableText.test(html),
 		zipDownloadAvailable: /Zip Download/i.test(pageText)
 	};
 }

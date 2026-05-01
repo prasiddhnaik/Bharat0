@@ -6,9 +6,13 @@ import {
 
 const dataGovFixture = `
 <html>
+	<head>
+		<script>
+			window.__NUXT__=(function(){return {catalogText:"Catalog API is not available."}})()
+		</script>
+	</head>
 	<body>
 		<a href="/apis/d3d3d8bf-e170-4fdc-abc5-1fba050acf44">Catalog API</a>
-		<span>Catalog API is not available.</span>
 		<a>Zip Download</a>
 		<script>
 			window.__NUXT__=(function(){return {post:{nid:"6715802",uuid:"d3d3d8bf-e170-4fdc-abc5-1fba050acf44",node_alias:"answers-data-rajya-sabha-questions-session-249",field_group_name:"Rajya Sabha - Annexures to Parliamentary Questions",updated_date:"17\\u002F02\\u002F2025",field_keywords:"rajya sabha, questions"}}})()
