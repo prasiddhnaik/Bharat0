@@ -19,6 +19,8 @@
 		"db:push": "prisma db push",
 		"db:deploy": "npm run db:generate && npm run db:push",
 		"db:seed": "tsx prisma/seed.ts",
+		"discover:sources": "tsx scripts/discover-source-catalogs.ts",
+		"discover:sources:write": "tsx scripts/discover-source-catalogs.ts --write",
 		"db:upsert:prs": "tsx scripts/upsert-prs-legislation.ts",
 		"db:upsert:pdl-pre2004": "tsx scripts/upsert-pdl-pre2004-legislation.ts",
 		"db:setup": "npm run db:generate && npm run db:push && npm run db:seed && npm run verify:db",
