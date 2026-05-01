@@ -285,6 +285,41 @@ type CountModel = {
 	count(args?: unknown): Promise<number>;
 };
 
+function trimSeedDashboardData(dashboard: DashboardData): DashboardData {
+	const needsBills = dashboard.filters.section === 'overview' || dashboard.filters.section === 'bills';
+	const needsTimeline = dashboard.filters.section === 'overview' || dashboard.filters.section === 'timeline';
+	const needsCommittees = dashboard.filters.section === 'committees';
+	const needsQuestions = dashboard.filters.section === 'questions';
+	const needsDebates = dashboard.filters.section === 'debates';
+	const needsActs = dashboard.filters.section === 'acts';
+	const needsSources = dashboard.filters.section === 'sources';
+
+	return {
+		...dashboard,
+		bills: needsBills ? dashboard.bills : dashboard.bills.slice(0, 1),
+		allBills: [],
+		billActions: [],
+		timelineEvents: needsTimeline ? dashboard.timelineEvents : [],
+		timelineGroups: needsTimeline ? dashboard.timelineGroups : [],
+		timelineDateRail: needsTimeline ? dashboard.timelineDateRail : [],
+		allTimelineEvents: [],
+		sittingDays: needsTimeline ? dashboard.sittingDays : dashboard.sittingDays.slice(0, 1),
+		committees: needsCommittees ? dashboard.committees : [],
+		questions: needsQuestions ? dashboard.questions : [],
+		debates: needsDebates ? dashboard.debates : [],
+		acts: needsActs ? dashboard.acts : [],
+		actBills: needsActs ? dashboard.actBills : [],
+		sources: needsSources ? dashboard.sources : [],
+		ingestion: needsSources
+			? dashboard.ingestion
+			: {
+					adapters: [] as DashboardData['ingestion']['adapters'],
+					outputSummary: {} as DashboardData['ingestion']['outputSummary'],
+					pipelineSteps: [] as DashboardData['ingestion']['pipelineSteps']
+				}
+	};
+}
+
 type PrismaReadClient = {
 	bill: FindManyModel<Parameters<typeof toDomainBill>[0]> & {
 		count(args?: unknown): Promise<number>;
@@ -304,7 +339,7 @@ function createSeedRepository(): LegislativeRepository {
 		async getDashboardData(filters) {
 			const { getDashboardData } = await import('$lib/data/view-model');
 			return {
-				...getDashboardData(filters),
+				...trimSeedDashboardData(getDashboardData(filters)),
 				dataSource: seedDataSource
 			};
 		},

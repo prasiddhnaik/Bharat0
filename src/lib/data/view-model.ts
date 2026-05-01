@@ -22,8 +22,10 @@ import type { DashboardFilters } from '$lib/domain/dashboard-filters';
 import { matchesSourceUrl } from '$lib/domain/source-filters';
 export { parseDashboardFilters, type DashboardFilters } from '$lib/domain/dashboard-filters';
 
+const billById = new Map(bills.map((bill) => [bill.id, bill]));
+
 function getLinkedBillForAct(act: Act) {
-	return bills.find((bill) => bill.id === act.linked_bill_id) ?? null;
+	return billById.get(act.linked_bill_id) ?? null;
 }
 
 function actMatchesQuery(act: Act, linkedBill: Bill | null, query: string, rawQuery: string) {
@@ -40,7 +42,12 @@ function actMatchesQuery(act: Act, linkedBill: Bill | null, query: string, rawQu
 
 export function getDashboardData(filters: DashboardFilters) {
 	const query = filters.query.trim().toLowerCase();
-	const filteredBills = bills.filter((bill) => {
+	const filteredBills: Bill[] = [];
+	const stageCountsMap = new Map<Bill['current_stage'], number>();
+	const areaCountsMap = new Map<string, number>();
+	const primeMinisterCountsMap = new Map<string, number>();
+
+	for (const bill of bills) {
 		const matchesHouse = filters.house === 'all' || bill.origin_house === filters.house;
 		const matchesStatus = filters.status === 'all' || bill.current_stage === filters.status;
 		const matchesArea = filters.area === 'all' || bill.ministry === filters.area;
@@ -52,21 +59,24 @@ export function getDashboardData(filters: DashboardFilters) {
 			bill.title_hi.includes(filters.query) ||
 			bill.ministry.toLowerCase().includes(query);
 
-		return matchesHouse && matchesStatus && matchesArea && matchesSource && matchesPrimeMinister && matchesQuery;
-	});
-	const areaBaseBills = bills.filter((bill) => {
-		const matchesHouse = filters.house === 'all' || bill.origin_house === filters.house;
-		const matchesStatus = filters.status === 'all' || bill.current_stage === filters.status;
-		const matchesSource = matchesSourceUrl(bill.source_url, filters.source);
-		const matchesPrimeMinister = billDateMatchesPrimeMinisterTerm(bill.introduced_on, filters.primeMinister);
-		const matchesQuery =
-			!query ||
-			bill.title_en.toLowerCase().includes(query) ||
-			bill.title_hi.includes(filters.query) ||
-			bill.ministry.toLowerCase().includes(query);
+		if (matchesHouse && matchesStatus && matchesSource && matchesPrimeMinister && matchesQuery) {
+			areaCountsMap.set(bill.ministry, (areaCountsMap.get(bill.ministry) ?? 0) + 1);
+		}
 
-		return matchesHouse && matchesStatus && matchesSource && matchesPrimeMinister && matchesQuery;
-	});
+		if (matchesHouse && matchesStatus && matchesArea && matchesSource && matchesQuery) {
+			for (const term of PRIME_MINISTER_TERMS) {
+				if (billDateMatchesPrimeMinisterTerm(bill.introduced_on, term.id as PrimeMinisterFilter)) {
+					primeMinisterCountsMap.set(term.id, (primeMinisterCountsMap.get(term.id) ?? 0) + 1);
+				}
+			}
+		}
+
+		if (matchesHouse && matchesStatus && matchesArea && matchesSource && matchesPrimeMinister && matchesQuery) {
+			filteredBills.push(bill);
+			stageCountsMap.set(bill.current_stage, (stageCountsMap.get(bill.current_stage) ?? 0) + 1);
+		}
+	}
+
 	const filteredBillIds = new Set(filteredBills.map((bill) => bill.id));
 	const filteredActs = acts
 		.filter((act) => {
@@ -81,44 +91,26 @@ export function getDashboardData(filters: DashboardFilters) {
 		})
 		.sort((left, right) => right.year - left.year || left.title.localeCompare(right.title));
 	const pageStart = (filters.page - 1) * filters.pageSize;
-	const pageBills = filters.section === 'bills' ? filteredBills.slice(pageStart, pageStart + filters.pageSize) : filteredBills;
+	const pageBills =
+		filters.section === 'bills'
+			? filteredBills.slice(pageStart, pageStart + filters.pageSize)
+			: filters.section === 'overview'
+				? filteredBills.slice(0, 5)
+				: filteredBills;
 	const pageActs = filters.section === 'acts' ? filteredActs.slice(pageStart, pageStart + filters.pageSize) : filteredActs;
 	const actBills = pageActs
 		.map(getLinkedBillForAct)
 		.filter((bill): bill is Bill => Boolean(bill));
-	const stageCounts = Object.entries(
-		filteredBills.reduce<Record<string, number>>((counts, bill) => {
-			counts[bill.current_stage] = (counts[bill.current_stage] ?? 0) + 1;
-			return counts;
-		}, {})
-	).map(([stage, count]) => ({ stage: stage as Bill['current_stage'], count }));
-	const areaCounts = Object.entries(
-		areaBaseBills.reduce<Record<string, number>>((counts, bill) => {
-			counts[bill.ministry] = (counts[bill.ministry] ?? 0) + 1;
-			return counts;
-		}, {})
-	).map(([area, count]) => ({ area, count }));
-	const primeMinisterCountBaseBills = bills.filter((bill) => {
-		const matchesHouse = filters.house === 'all' || bill.origin_house === filters.house;
-		const matchesStatus = filters.status === 'all' || bill.current_stage === filters.status;
-		const matchesArea = filters.area === 'all' || bill.ministry === filters.area;
-		const matchesSource = matchesSourceUrl(bill.source_url, filters.source);
-		const matchesQuery =
-			!query ||
-			bill.title_en.toLowerCase().includes(query) ||
-			bill.title_hi.includes(filters.query) ||
-			bill.ministry.toLowerCase().includes(query);
-
-		return matchesHouse && matchesStatus && matchesArea && matchesSource && matchesQuery;
-	});
+	const stageCounts = [...stageCountsMap.entries()].map(([stage, count]) => ({ stage, count }));
+	const areaCounts = [...areaCountsMap.entries()].map(([area, count]) => ({ area, count }));
 	const primeMinisterCounts = PRIME_MINISTER_TERMS.map((term) => ({
 		id: term.id,
-		count: primeMinisterCountBaseBills.filter((bill) => billDateMatchesPrimeMinisterTerm(bill.introduced_on, term.id as PrimeMinisterFilter)).length
+		count: primeMinisterCountsMap.get(term.id) ?? 0
 	}));
 
 	const filteredEvents = timelineEvents.filter((event) => {
 		const matchesHouse = filters.house === 'all' || event.house === filters.house;
-		const relatedBill = event.related_bill_id ? bills.find((bill) => bill.id === event.related_bill_id) : null;
+		const relatedBill = event.related_bill_id ? billById.get(event.related_bill_id) ?? null : null;
 		const matchesStatus = filters.status === 'all' || (relatedBill ? relatedBill.current_stage === filters.status : true);
 		const matchesPrimeMinister = !relatedBill || billDateMatchesPrimeMinisterTerm(relatedBill.introduced_on, filters.primeMinister);
 		const matchesQuery =
@@ -180,7 +172,7 @@ export function getDashboardData(filters: DashboardFilters) {
 }
 
 export function getBillDetail(billId: string): { bill: Bill; actions: typeof billActions } | null {
-	const bill = bills.find((item) => item.id === billId);
+	const bill = billById.get(billId);
 	if (!bill) return null;
 	return {
 		bill,

@@ -46,28 +46,29 @@ export function buildTimelineDateRail({
 	language
 }: BuildTimelineDateRailInput): TimelineDateRailItem[] {
 	const dates = new Set<string>();
+	const eventCountsByDate = new Map<string, number>();
+	const sittingCountsByDate = new Map<string, number>();
 
 	for (const sittingDay of sittingDays) {
 		if (matchesHouse(house, sittingDay.house)) {
 			dates.add(sittingDay.date);
+			sittingCountsByDate.set(sittingDay.date, (sittingCountsByDate.get(sittingDay.date) ?? 0) + 1);
 		}
 	}
 
 	for (const event of events) {
 		if (matchesHouse(house, event.house)) {
 			dates.add(event.date);
+			eventCountsByDate.set(event.date, (eventCountsByDate.get(event.date) ?? 0) + 1);
 		}
 	}
 
 	return [...dates].sort((left, right) => right.localeCompare(left)).map((date) => {
-		const eventCount = events.filter((event) => event.date === date && matchesHouse(house, event.house)).length;
-		const sittingCount = sittingDays.filter((sittingDay) => sittingDay.date === date && matchesHouse(house, sittingDay.house)).length;
-
 		return {
 			date,
 			selected: date === selectedDate,
-			eventCount,
-			sittingCount,
+			eventCount: eventCountsByDate.get(date) ?? 0,
+			sittingCount: sittingCountsByDate.get(date) ?? 0,
 			href: buildDateHref({ section, date, house, language })
 		};
 	});
