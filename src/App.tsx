@@ -2248,6 +2248,16 @@ function getDebateDetailProfile(debate: Debate): DebateDetailProfile {
 	};
 }
 
+function getDebateTranscriptLabel(debate: Debate) {
+	if (!debate.transcript_url) return 'Not linked';
+	const pageLabel = debate.transcript_pages ? `${debate.transcript_pages} page${debate.transcript_pages === 1 ? '' : 's'}` : 'PDF';
+	return debate.transcript_size ? `${pageLabel} · ${debate.transcript_size}` : pageLabel;
+}
+
+function uniqueDebateMembers(debate: Debate) {
+	return Array.from(new Set(debate.members ?? []));
+}
+
 function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | null; filters: DashboardFilters; onNavigate: NavigateHandler }) {
 	if (!debate) {
 		return (
@@ -2265,6 +2275,9 @@ function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | n
 	const linkedBillHref = linkedBillId ? hrefForBill(filters, linkedBillId) : null;
 	const stageLabel = debateStageLabel(debate);
 	const detailProfile = getDebateDetailProfile(debate);
+	const debateMembers = uniqueDebateMembers(debate);
+	const visibleMembers = debateMembers.slice(0, 12);
+	const hiddenMemberCount = Math.max(0, debateMembers.length - visibleMembers.length);
 
 	return (
 		<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
@@ -2290,7 +2303,59 @@ function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | n
 					<DetailTerm label="Date" value={formatDate(debate.date)} />
 					<DetailTerm label="Source family" value={debateSourceLabel(debate)} />
 					<DetailTerm label="Stage read" value={stageLabel} />
+					<DetailTerm label="Transcript" value={getDebateTranscriptLabel(debate)} />
+					<DetailTerm label="Debate type" value={debate.debate_type ?? 'Not classified'} />
 				</dl>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3">
+					<div className="flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<p className="bz-eyebrow text-[0.55rem]">Official transcript</p>
+							<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+								{debate.transcript_url
+									? `PDF transcript linked from the source record${debate.transcript_language ? ` · language: ${debate.transcript_language}` : ''}.`
+									: 'No official transcript PDF has been linked for this debate yet.'}
+							</p>
+						</div>
+						{debate.transcript_url && (
+							<a
+								className="inline-flex rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2 py-1 text-[10.5px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus"
+								href={debate.transcript_url}
+								target="_blank"
+								rel="noreferrer"
+							>
+								Open PDF
+							</a>
+						)}
+					</div>
+
+					<div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--bz-border)] pt-3 text-xs">
+						<div>
+							<p className="bz-eyebrow text-[0.55rem]">Lok Sabha</p>
+							<p className="mt-1 font-semibold text-[var(--bz-text-1)]">{debate.lok_sabha_number ?? 'Not listed'}</p>
+						</div>
+						<div>
+							<p className="bz-eyebrow text-[0.55rem]">Session</p>
+							<p className="mt-1 font-semibold text-[var(--bz-text-1)]">{debate.session_number ?? 'Not listed'}</p>
+						</div>
+					</div>
+
+					{debateMembers.length ? (
+						<div className="mt-4">
+							<p className="bz-eyebrow text-[0.55rem]">Members listed in source</p>
+							<div className="mt-2 flex flex-wrap gap-1.5">
+								{visibleMembers.map((member) => (
+									<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]" key={member}>
+										{member}
+									</span>
+								))}
+								{hiddenMemberCount > 0 && <span className="rounded border border-[var(--bz-border)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]">+{hiddenMemberCount} more</span>}
+							</div>
+						</div>
+					) : (
+						<p className="mt-4 text-[12.5px] leading-5 text-[var(--bz-text-2)]">No speaker/member list has been extracted for this record yet.</p>
+					)}
+				</div>
 
 				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
 					<p className="bz-eyebrow text-[0.55rem]">Why this proceeding matters</p>
