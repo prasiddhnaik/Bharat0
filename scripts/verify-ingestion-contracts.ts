@@ -18,6 +18,25 @@ assert.ok(
 	officialSourceAdapters.some((adapter) => adapter.id === 'neva' && adapter.outputs.includes('state_legislature_events')),
 	'NeVA adapter should preserve future state-legislature expansion'
 );
+assert.ok(
+	officialSourceAdapters.some(
+		(adapter) =>
+			adapter.id === 'data-gov' &&
+			adapter.status === 'prepared-contract' &&
+			adapter.outputs.includes('questions') &&
+			adapter.outputs.includes('debates')
+	),
+	'data.gov.in adapter should be prepared for question-answer and debate catalog discovery'
+);
+assert.ok(
+	officialSourceAdapters.some(
+		(adapter) =>
+			adapter.id === 'sansad' &&
+			adapter.outputs.includes('committee_reports') &&
+			adapter.outputs.includes('bill_committee_refs')
+	),
+	'Sansad adapter should be prepared for committee report and Bill-committee reference expansion'
+);
 assert.deepEqual(ingestionPipelineSteps, ['source_capture', 'normalization', 'stage_resolution', 'read_model_publish']);
 assert.equal(getPreparedSourceAdapters().length, officialSourceAdapters.length);
 

@@ -23,6 +23,7 @@ import {
 	type Bill,
 	type BillAction,
 	type BillStage,
+	type Debate,
 	type House,
 	type SectionId,
 	type SourceKind,
@@ -159,6 +160,24 @@ function hrefForAct(filters: DashboardFilters, actId: string) {
 	return `/?${search.toString()}`;
 }
 
+function hrefForDebate(filters: DashboardFilters, debateId: string) {
+	const search = new URLSearchParams({
+		section: 'debates',
+		lang: filters.language,
+		page: String(filters.page || 1),
+		pageSize: String(filters.pageSize || DEFAULT_BILLS_PAGE_SIZE),
+		debate: debateId
+	});
+	if (filters.query) search.set('q', filters.query);
+	if (filters.house !== 'all') search.set('house', filters.house);
+	if (filters.status !== 'all') search.set('status', filters.status);
+	if (filters.area !== 'all') search.set('area', filters.area);
+	if (filters.source !== 'all') search.set('source', filters.source);
+	if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
+	if (filters.date) search.set('date', filters.date);
+	return `/?${search.toString()}`;
+}
+
 function hrefForSourceRecords(sourceId: string, language: Language) {
 	const section = sourceId === 'source-india-code' ? 'acts' : 'bills';
 	const search = new URLSearchParams({
@@ -266,6 +285,7 @@ function App() {
 	const locationParams = new URLSearchParams(locationSearch);
 	const selectedBillId = dashboard.filters.section === 'bills' ? (locationParams.get('bill') ?? dashboard.bills[0]?.id ?? null) : locationParams.get('bill');
 	const selectedActId = dashboard.filters.section === 'acts' ? (locationParams.get('act') ?? dashboard.acts[0]?.id ?? null) : null;
+	const selectedDebateId = dashboard.filters.section === 'debates' ? (locationParams.get('debate') ?? dashboard.debates[0]?.id ?? null) : null;
 	const [selectedBill, setSelectedBill] = useState<AppBillDetailData | null>(null);
 	const [aiAnalysisByKey, setAiAnalysisByKey] = useState<Record<string, BillAnalysis>>({});
 	const [aiAnalysisLoadingKey, setAiAnalysisLoadingKey] = useState<string | null>(null);
@@ -273,6 +293,7 @@ function App() {
 	const dashboardSearch = useMemo(() => {
 		const searchParams = new URLSearchParams(locationSearch);
 		searchParams.delete('bill');
+		searchParams.delete('debate');
 		const serialized = searchParams.toString();
 		return serialized ? `?${serialized}` : '';
 	}, [locationSearch]);
@@ -280,6 +301,7 @@ function App() {
 	const actBillsById = useMemo(() => new Map((dashboard.actBills ?? dashboard.allBills ?? []).map((bill) => [bill.id, bill])), [dashboard.actBills, dashboard.allBills]);
 	const selectedAct = selectedActId ? dashboard.acts.find((act) => act.id === selectedActId) ?? null : null;
 	const selectedActLinkedBill = selectedAct ? actBillsById.get(selectedAct.linked_bill_id) ?? null : null;
+	const selectedDebate = selectedDebateId ? dashboard.debates.find((debate) => debate.id === selectedDebateId) ?? null : null;
 	const selectedAnalysisKey = selectedBillForRender ? `${selectedBillForRender.bill.id}:${dashboard.filters.language}` : null;
 	const localSelectedAnalysis = useMemo(
 		() => (selectedBillForRender ? buildBillAnalysis(selectedBillForRender.bill, selectedBillForRender.actions, dashboard.filters.language) : null),
@@ -404,10 +426,12 @@ function App() {
 					<ActDetailPanel act={selectedAct} linkedBill={selectedActLinkedBill} filters={dashboard.filters} onNavigate={navigateInApp} />
 				) : dashboard.filters.section === 'bills' ? (
 					<BillDetailPanel bill={selectedBillForRender?.bill ?? null} actions={selectedBillForRender?.actions ?? []} language={dashboard.filters.language} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
+				) : dashboard.filters.section === 'debates' ? (
+					<DebateDetailPanel debate={selectedDebate} filters={dashboard.filters} onNavigate={navigateInApp} />
 				) : null
 			}
 		>
-			<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedActId={selectedActId} selectedBill={selectedBillForRender} selectedBillAnalysis={selectedBillAnalysis} selectedAnalysisStatus={selectedAnalysisStatus} onNavigate={navigateInApp} />
+			<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedActId={selectedActId} selectedDebateId={selectedDebateId} selectedBill={selectedBillForRender} selectedBillAnalysis={selectedBillAnalysis} selectedAnalysisStatus={selectedAnalysisStatus} onNavigate={navigateInApp} />
 		</AppShell>
 	);
 }
@@ -416,6 +440,7 @@ function MainContent({
 	dashboard,
 	selectedBillId,
 	selectedActId,
+	selectedDebateId,
 	selectedBill,
 	selectedBillAnalysis,
 	selectedAnalysisStatus,
@@ -424,6 +449,7 @@ function MainContent({
 	dashboard: AppDashboardData;
 	selectedBillId: string | null;
 	selectedActId: string | null;
+	selectedDebateId: string | null;
 	selectedBill: AppBillDetailData | null;
 	selectedBillAnalysis: BillAnalysis | null;
 	selectedAnalysisStatus: AnalysisStatus;
@@ -521,20 +547,38 @@ function MainContent({
 			)}
 
 			{filters.section === 'debates' && (
-				<section className="space-y-3">
-					{dashboard.debates.map((debate) => (
-						<article className="bz-panel rounded-lg p-4" key={debate.id}>
-							<p className="bz-eyebrow">
-								{houseLabelsLocalized[filters.language][debate.house]} · {formatDate(debate.date)}
-							</p>
-							<h2 className="mt-2 text-base font-semibold text-[var(--bz-text-1)]">{debate.title}</h2>
-							<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">{debate.summary}</p>
-							<div className="mt-4">
-								<SourceBadge url={debate.source_url} isDemoSeed={debate.isDemoSeed} />
-							</div>
-						</article>
-					))}
-				</section>
+				dashboard.debates.length ? (
+					<section className="space-y-3">
+						{dashboard.debates.map((debate) => (
+							<article className={cx('bz-panel rounded-lg p-4 transition', debate.id === selectedDebateId ? 'border-[var(--bz-accent)] bg-[var(--bz-accent-3)]' : 'hover:border-[var(--bz-accent)]')} key={debate.id}>
+								<a
+									className="block rounded-sm bz-focus"
+									href={hrefForDebate(filters, debate.id)}
+									aria-current={debate.id === selectedDebateId ? 'true' : undefined}
+									onClick={(event) => {
+										if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+										event.preventDefault();
+										onNavigate(hrefForDebate(filters, debate.id));
+									}}
+								>
+									<div className="flex flex-wrap items-center gap-2">
+										<p className="bz-eyebrow">
+											{houseLabelsLocalized[filters.language][debate.house]} · {formatDate(debate.date)}
+										</p>
+										<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--bz-text-2)]">{debateStageLabel(debate)}</span>
+									</div>
+									<h2 className="mt-2 text-base font-semibold text-[var(--bz-text-1)]">{debate.title}</h2>
+									<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">{debate.summary}</p>
+								</a>
+								<div className="mt-4">
+									<SourceBadge url={debate.source_url} label={debateSourceLabel(debate)} isDemoSeed={debate.isDemoSeed} />
+								</div>
+							</article>
+						))}
+					</section>
+				) : (
+					<EmptyState title="No debates match these filters" message="Change the search, House, or source filter to broaden the debate proceedings." />
+				)
 			)}
 
 			{filters.section === 'acts' && (
@@ -2067,6 +2111,315 @@ function getNextWatchItems(bill: Bill, actions: BillAction[], language: Language
 		latestAction ? `Use the latest captured action from ${formatDate(latestAction.date)} as the baseline for updates.` : 'Add action history from the official bill page.',
 		sourceItem
 	];
+}
+
+const debateBillLinks: Record<string, string> = {
+	'debate-income-tax-bill-introduced': 'income-tax-bill-2025',
+	'debate-dpdp-bill-introduced': 'digital-personal-data-protection-bill-2023',
+	'debate-tribhuvan-bill-passed': 'tribhuvan-sahkari-university-bill-2025',
+	'debate-aircraft-objects-bill-introduced': 'protection-of-interests-in-aircraft-objects-bill-2025'
+};
+
+type DebateDetailProfile = {
+	linkedBillTitle: string;
+	sourceRecord: string;
+	proceduralRead: string;
+	whyItMatters: string[];
+	sourceChecks: string[];
+	nextChecks: string[];
+};
+
+const debateDetailProfiles: Record<string, DebateDetailProfile> = {
+	'debate-income-tax-bill-introduced': {
+		linkedBillTitle: 'The Income-Tax Bill, 2025',
+		sourceRecord: 'Parliament Digital Library proceeding for Government Bills on 13 Feb 2025.',
+		proceduralRead: 'This proceeding marks the Bill entering Lok Sabha business. Introduction is the first formal chamber step; it does not mean the Bill was considered clause by clause or passed on that date.',
+		whyItMatters: [
+			'Creates the first official parliamentary timestamp for the Bill.',
+			'Lets the Bill panel connect introduction, committee, and later movement in one trail.',
+			'Helps separate formal introduction from later select committee scrutiny and passage work.'
+		],
+		sourceChecks: [
+			'Exact motion or item text used for introduction.',
+			'Minister or member associated with moving the Bill.',
+			'Whether the source page links to a transcript PDF or only the indexed proceeding entry.'
+		],
+		nextChecks: [
+			'Open the linked Bill to compare introduction against committee and later stage records.',
+			'Add transcript extraction when the source PDF is available.',
+			'Cross-check PRS and Sansad records before using this as a complete debate summary.'
+		]
+	},
+	'debate-dpdp-bill-introduced': {
+		linkedBillTitle: 'The Digital Personal Data Protection Bill, 2023',
+		sourceRecord: 'Parliament Digital Library proceeding for introduction on 3 Aug 2023.',
+		proceduralRead: 'This proceeding records the Bill being introduced in Lok Sabha. It is a stage marker for the start of parliamentary handling, not a full policy debate summary by itself.',
+		whyItMatters: [
+			'Anchors the Bill to a specific Lok Sabha sitting date.',
+			'Gives the debates tab a source-backed entry point for later privacy and data-governance discussion.',
+			'Keeps the introduction source separate from later passage and Act publication sources.'
+		],
+		sourceChecks: [
+			'Whether the indexed proceeding has a transcript PDF with speaker-level text.',
+			'The exact introduction wording and Bill title as printed in the proceeding.',
+			'Any immediate objections, leave motions, or procedural notes on the same page.'
+		],
+		nextChecks: [
+			'Open the linked Bill to inspect party position reasoning and source links.',
+			'Connect later debate, passage, and assent records when source pages are available.',
+			'Add clause-level privacy issues only after text extraction from the Bill or Act source.'
+		]
+	},
+	'debate-tribhuvan-bill-passed': {
+		linkedBillTitle: 'Tribhuvan Sahkari University Bill, 2025',
+		sourceRecord: 'Parliament Digital Library Lok Sabha proceeding for 26 Mar 2025.',
+		proceduralRead: 'This proceeding is a chamber-level passage signal for the Bill in Lok Sabha. It should be read as evidence of Lok Sabha passage, not by itself as final enactment or President assent.',
+		whyItMatters: [
+			'It is the strongest debate-tab signal that the Bill moved beyond introduction in the originating House.',
+			'It gives the Acts and Bills panels a dated parliamentary proceeding to connect with the later law record.',
+			'It helps users separate the passage proceeding from policy support, opposition reasoning, and final Act publication.'
+		],
+		sourceChecks: [
+			'Exact motion text and whether the sitting record says the Bill was passed, passed with amendments, or passed after discussion.',
+			'Speaker names, minister response, opposition interventions, and any recorded division if the transcript includes them.',
+			'Whether the source page exposes a downloadable transcript/PDF beyond the indexed PDL entry.'
+		],
+		nextChecks: [
+			'Open the linked Bill for party support/opposition reasoning and bill-stage context.',
+			'Compare with the Acts tab to confirm the enacted-law record and official text source.',
+			'Add transcript parsing so the panel can show speaker-level debate and amendment details.'
+		]
+	},
+	'debate-aircraft-objects-bill-introduced': {
+		linkedBillTitle: 'Protection of Interests in Aircraft Objects Bill, 2025',
+		sourceRecord: 'PRS bill tracker record for Rajya Sabha introduction on 10 Feb 2025.',
+		proceduralRead: 'This record is a tracker-backed introduction signal for Rajya Sabha. Because it is not a full transcript source, treat it as a stage reference until the chamber proceeding is linked.',
+		whyItMatters: [
+			'Shows the Bill entered Rajya Sabha business on a specific date.',
+			'Connects debate discovery to an aviation-finance Bill that may need official proceeding enrichment.',
+			'Flags a useful gap: the tracker source should be paired with a chamber record when available.'
+		],
+		sourceChecks: [
+			'PRS stage/date entry and linked Bill text or tracker notes.',
+			'Official Rajya Sabha proceeding page for the same introduction date.',
+			'Whether later stages changed the Bill after introduction.'
+		],
+		nextChecks: [
+			'Open the linked Bill to inspect policy area, status, and source trail.',
+			'Add Rajya Sabha transcript/source URL once available.',
+			'Use the current entry as metadata-level evidence until official proceeding text is attached.'
+		]
+	}
+};
+
+function debateStageLabel(debate: Pick<Debate, 'title'>) {
+	const normalizedTitle = debate.title.toLowerCase();
+	if (normalizedTitle.includes('passed')) return 'Passed debate';
+	if (normalizedTitle.includes('introduced')) return 'Introduction';
+	return 'Proceeding';
+}
+
+function debateSourceLabel(debate: Pick<Debate, 'source_url'>) {
+	const normalizedUrl = debate.source_url.toLowerCase();
+	if (normalizedUrl.includes('eparlib.sansad.in')) return 'Parliament Digital Library';
+	return sourceKindLabels[sourceKindFromUrl(debate.source_url)];
+}
+
+function getDebateDetailProfile(debate: Debate): DebateDetailProfile {
+	return debateDetailProfiles[debate.id] ?? {
+		linkedBillTitle: 'Mapped Bill not identified',
+		sourceRecord: `${debateSourceLabel(debate)} record for ${formatDate(debate.date)}.`,
+		proceduralRead: 'This is a source-backed proceeding entry. The panel can identify the House, date, stage read, and source family, but transcript-level detail still needs extraction from the source page.',
+		whyItMatters: [
+			'Adds a dated proceeding record to the legislative trail.',
+			'Helps users move from a debate hit into the related Bill or source page.',
+			'Keeps source-backed metadata separate from unsourced political interpretation.'
+		],
+		sourceChecks: [
+			'Exact proceeding text, transcript PDF, and speaker names if the source exposes them.',
+			'Whether the proceeding records introduction, consideration, passage, amendment, or another motion.',
+			'Whether a second official source confirms the same stage and date.'
+		],
+		nextChecks: [
+			'Map the proceeding to a Bill record.',
+			'Extract transcript text for speaker-level detail.',
+			'Cross-check later Bill, Act, or Gazette records before treating the proceeding as final status.'
+		]
+	};
+}
+
+function getDebateTranscriptLabel(debate: Debate) {
+	if (!debate.transcript_url) return 'Not linked';
+	const pageLabel = debate.transcript_pages ? `${debate.transcript_pages} page${debate.transcript_pages === 1 ? '' : 's'}` : 'PDF';
+	return debate.transcript_size ? `${pageLabel} · ${debate.transcript_size}` : pageLabel;
+}
+
+function uniqueDebateMembers(debate: Debate) {
+	return Array.from(new Set(debate.members ?? []));
+}
+
+function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | null; filters: DashboardFilters; onNavigate: NavigateHandler }) {
+	if (!debate) {
+		return (
+			<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
+				<div className="p-4">
+					<p className="bz-eyebrow text-[var(--bz-accent)]">Debate detail</p>
+					<h2 className="mt-3 text-lg font-semibold text-[var(--bz-text-1)]">Select a debate</h2>
+					<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">Choose a debate proceeding to inspect the source, chamber, date, and related Bill context.</p>
+				</div>
+			</aside>
+		);
+	}
+
+	const linkedBillId = debateBillLinks[debate.id];
+	const linkedBillHref = linkedBillId ? hrefForBill(filters, linkedBillId) : null;
+	const stageLabel = debateStageLabel(debate);
+	const detailProfile = getDebateDetailProfile(debate);
+	const debateMembers = uniqueDebateMembers(debate);
+	const visibleMembers = debateMembers.slice(0, 12);
+	const hiddenMemberCount = Math.max(0, debateMembers.length - visibleMembers.length);
+
+	return (
+		<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
+			<div className="border-b border-[var(--bz-border)] bg-[var(--bz-surface)] px-4 py-3">
+				<div className="flex flex-wrap items-center gap-2">
+					<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10.5px] font-semibold text-[var(--bz-text-2)]">{stageLabel}</span>
+					<span className="rounded border border-[var(--bz-border)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]">{houseLabelsLocalized[filters.language][debate.house]}</span>
+					{debate.isDemoSeed && <span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]">Sandbox record</span>}
+				</div>
+				<h2 className="mt-3 text-lg font-bold leading-6 text-[var(--bz-text-1)]">{debate.title}</h2>
+				<p className="mt-1 text-xs text-[var(--bz-text-2)]">{formatDate(debate.date)}</p>
+			</div>
+
+			<div className="p-4">
+				<div className="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-accent-3)] p-3">
+					<p className="bz-eyebrow text-[0.55rem] text-[var(--bz-accent)]">Proceeding read</p>
+					<p className="mt-2 text-[13px] leading-6 text-[var(--bz-text-1)]">{debate.summary}</p>
+					<p className="mt-3 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{detailProfile.proceduralRead}</p>
+				</div>
+
+				<dl className="mt-5 grid grid-cols-2 gap-2 text-xs">
+					<DetailTerm label="House" value={houseLabelsLocalized[filters.language][debate.house]} />
+					<DetailTerm label="Date" value={formatDate(debate.date)} />
+					<DetailTerm label="Source family" value={debateSourceLabel(debate)} />
+					<DetailTerm label="Stage read" value={stageLabel} />
+					<DetailTerm label="Transcript" value={getDebateTranscriptLabel(debate)} />
+					<DetailTerm label="Debate type" value={debate.debate_type ?? 'Not classified'} />
+				</dl>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3">
+					<div className="flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<p className="bz-eyebrow text-[0.55rem]">Official transcript</p>
+							<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+								{debate.transcript_url
+									? `PDF transcript linked from the source record${debate.transcript_language ? ` · language: ${debate.transcript_language}` : ''}.`
+									: 'No official transcript PDF has been linked for this debate yet.'}
+							</p>
+						</div>
+						{debate.transcript_url && (
+							<a
+								className="inline-flex rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2 py-1 text-[10.5px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus"
+								href={debate.transcript_url}
+								target="_blank"
+								rel="noreferrer"
+							>
+								Open PDF
+							</a>
+						)}
+					</div>
+
+					<div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--bz-border)] pt-3 text-xs">
+						<div>
+							<p className="bz-eyebrow text-[0.55rem]">Lok Sabha</p>
+							<p className="mt-1 font-semibold text-[var(--bz-text-1)]">{debate.lok_sabha_number ?? 'Not listed'}</p>
+						</div>
+						<div>
+							<p className="bz-eyebrow text-[0.55rem]">Session</p>
+							<p className="mt-1 font-semibold text-[var(--bz-text-1)]">{debate.session_number ?? 'Not listed'}</p>
+						</div>
+					</div>
+
+					{debateMembers.length ? (
+						<div className="mt-4">
+							<p className="bz-eyebrow text-[0.55rem]">Members listed in source</p>
+							<div className="mt-2 flex flex-wrap gap-1.5">
+								{visibleMembers.map((member) => (
+									<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]" key={member}>
+										{member}
+									</span>
+								))}
+								{hiddenMemberCount > 0 && <span className="rounded border border-[var(--bz-border)] px-1.5 py-0.5 text-[10.5px] text-[var(--bz-text-2)]">+{hiddenMemberCount} more</span>}
+							</div>
+						</div>
+					) : (
+						<p className="mt-4 text-[12.5px] leading-5 text-[var(--bz-text-2)]">No speaker/member list has been extracted for this record yet.</p>
+					)}
+				</div>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+					<p className="bz-eyebrow text-[0.55rem]">Why this proceeding matters</p>
+					<ul className="mt-2 space-y-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+						{detailProfile.whyItMatters.map((item) => (
+							<li className="flex gap-2" key={item}>
+								<span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--bz-accent)]" />
+								<span>{item}</span>
+							</li>
+						))}
+					</ul>
+				</div>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3">
+					<p className="bz-eyebrow text-[0.55rem]">Source can confirm</p>
+					<p className="mt-2 text-[12.5px] font-semibold leading-5 text-[var(--bz-text-1)]">{detailProfile.sourceRecord}</p>
+					<ul className="mt-2 space-y-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+						{detailProfile.sourceChecks.map((item) => (
+							<li className="flex gap-2" key={item}>
+								<span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--bz-text-3)]" />
+								<span>{item}</span>
+							</li>
+						))}
+					</ul>
+				</div>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+					<p className="bz-eyebrow text-[0.55rem]">Related Bill</p>
+					<p className="mt-2 text-sm font-semibold leading-5 text-[var(--bz-text-1)]">{detailProfile.linkedBillTitle}</p>
+					{linkedBillHref ? (
+						<a
+							className="mt-2 inline-flex rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2 py-1 text-[10.5px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus"
+							href={linkedBillHref}
+							onClick={(event) => {
+								if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+								event.preventDefault();
+								onNavigate(linkedBillHref);
+							}}
+						>
+							Open linked Bill
+						</a>
+					) : (
+						<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">No linked Bill has been mapped for this debate yet.</p>
+					)}
+				</div>
+
+				<div className="mt-5 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3">
+					<p className="bz-eyebrow text-[0.55rem]">Next checks</p>
+					<ul className="mt-2 space-y-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+						{detailProfile.nextChecks.map((item) => (
+							<li className="flex gap-2" key={item}>
+								<span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--bz-accent)]" />
+								<span>{item}</span>
+							</li>
+						))}
+					</ul>
+				</div>
+
+				<div className="mt-5">
+					<SourceBadge url={debate.source_url} label={debateSourceLabel(debate)} isDemoSeed={debate.isDemoSeed} />
+				</div>
+			</div>
+		</aside>
+	);
 }
 
 function ActDetailPanel({ act, linkedBill, filters, onNavigate }: { act: Act | null; linkedBill: Bill | null; filters: DashboardFilters; onNavigate: NavigateHandler }) {

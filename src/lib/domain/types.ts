@@ -174,6 +174,14 @@ export type Debate = {
 	title: string;
 	summary: string;
 	source_url: string;
+	transcript_url?: string;
+	transcript_pages?: number;
+	transcript_size?: string;
+	transcript_language?: string;
+	members?: string[];
+	lok_sabha_number?: string;
+	session_number?: string;
+	debate_type?: string;
 	isDemoSeed: boolean;
 };
 

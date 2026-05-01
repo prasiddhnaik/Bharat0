@@ -15,6 +15,8 @@ export type AdapterOutput =
 	| 'committees'
 	| 'questions'
 	| 'debates'
+	| 'committee_reports'
+	| 'bill_committee_refs'
 	| 'acts'
 	| 'gazette_notifications'
 	| 'state_legislature_events';
@@ -45,9 +47,20 @@ export const officialSourceAdapters: OfficialSourceAdapter[] = [
 		status: 'prepared-contract',
 		authority: 'union-parliament',
 		supportedHouses: ['lok-sabha', 'rajya-sabha'],
-		outputs: ['bills', 'bill_actions', 'sitting_days', 'timeline_events', 'questions', 'debates', 'committees', 'acts'],
+		outputs: [
+			'bills',
+			'bill_actions',
+			'sitting_days',
+			'timeline_events',
+			'questions',
+			'debates',
+			'committees',
+			'committee_reports',
+			'bill_committee_refs',
+			'acts'
+		],
 		notes:
-			'Primary Bill-status source. scripts/sync-sansad-legislation.ts targets the Sansad legislation API path and falls back to a public mirrored JSON export when the live endpoint rejects direct server fetches.'
+			'Primary Bill-status source. scripts/sync-sansad-legislation.ts targets the Sansad legislation API path and falls back to a public mirrored JSON export when the live endpoint rejects direct server fetches. scripts/discover-source-catalogs.ts audits committee-report and Bill-with-committee surfaces before a write adapter is added.'
 	},
 	{
 		id: 'lok-sabha',
@@ -83,11 +96,12 @@ export const officialSourceAdapters: OfficialSourceAdapter[] = [
 		id: 'data-gov',
 		name: 'Open Government Data Platform India',
 		baseUrl: 'https://data.gov.in/',
-		status: 'future-adapter',
+		status: 'prepared-contract',
 		authority: 'open-data',
 		supportedHouses: ['lok-sabha', 'rajya-sabha'],
-		outputs: ['timeline_events'],
-		notes: 'Future supplemental catalog source when official datasets exist; not the primary Bill-status authority.'
+		outputs: ['questions', 'debates', 'timeline_events'],
+		notes:
+			'Supplemental structured catalog source for Rajya Sabha question-answer annexures and Lok Sabha/Rajya Sabha debate datasets. scripts/discover-source-catalogs.ts audits catalog/API availability without writing production rows.'
 	},
 	{
 		id: 'egazette',
