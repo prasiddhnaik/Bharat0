@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { lokSabhaPowerSnapshots } from '../src/lib/domain/parliament-houses';
 import { primeMinisterProfiles } from '../src/lib/domain/prime-minister-profiles';
 import { createPrismaClient } from '../src/lib/server/db/prisma';
+import { assertEnv } from './lib/envCheck';
+import { makeLogger } from './lib/logger';
 
+const log = makeLogger('VERIFY-PM-DB');
+assertEnv(['DATABASE_URL'], log);
 const prisma = createPrismaClient();
 
 try {

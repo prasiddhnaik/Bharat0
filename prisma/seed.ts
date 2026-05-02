@@ -8,7 +8,11 @@ import {
 	timelineEvents
 } from '../src/lib/data/seed';
 import { createPrismaClient } from '../src/lib/server/db/prisma';
+import { assertEnv } from '../scripts/lib/envCheck';
+import { makeLogger } from '../scripts/lib/logger';
 
+const log = makeLogger('DB-SEED');
+assertEnv(['DATABASE_URL'], log);
 const prisma = createPrismaClient();
 const date = (value: string) => new Date(`${value}T00:00:00+05:30`);
 

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { getDashboardData } from '../src/lib/data/view-model';
 import type { DashboardFilters } from '../src/lib/domain/dashboard-filters';
 import { createPrismaClient } from '../src/lib/server/db/prisma';
+import { assertEnv } from './lib/envCheck';
+import { makeLogger } from './lib/logger';
 
 const baseFilters: DashboardFilters = {
 	section: 'houses',
@@ -16,6 +18,8 @@ const baseFilters: DashboardFilters = {
 	page: 1,
 	pageSize: 60
 };
+
+const log = makeLogger('VERIFY-OLDER-PM');
 
 function seedCountFor(termId: string) {
 	const dashboard = getDashboardData({ ...baseFilters, primeMinister: termId as DashboardFilters['primeMinister'] });
@@ -33,6 +37,7 @@ for (const [termId, label] of expectedSeedCoverage) {
 	assert.ok(seedCountFor(termId) > 0, `${label} should have at least one PDL bill/proceeding record`);
 }
 
+assertEnv(['DATABASE_URL'], log);
 const prisma = createPrismaClient();
 
 try {

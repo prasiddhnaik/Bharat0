@@ -3,6 +3,14 @@ import {
 	dataGovTimelineEvents
 } from '../src/lib/data/generated/data-gov-questions';
 import { createPrismaClient } from '../src/lib/server/db/prisma';
+import { assertEnv, safeDbUrl } from './lib/envCheck';
+import { parseFlags } from './lib/flags';
+import { makeLogger } from './lib/logger';
+import { chunkInsert, formatCountMap, guardNonEmpty, sumCounts } from './lib/upsertHelpers';
+
+const log = makeLogger('DATA-GOV');
+const flags = parseFlags(['dry-run', 'allow-empty']);
+assertEnv(['DATABASE_URL'], log);
 
 const prisma = createPrismaClient();
 const date = (value: string) => new Date(`${value}T00:00:00+05:30`);
@@ -11,61 +19,69 @@ function toPrismaEnum(value: string): string {
 	return value.replaceAll('-', '_').toUpperCase();
 }
 
-async function createManyInChunks<T>(
-	label: string,
-	items: T[],
-	createMany: (data: T[]) => Promise<unknown>,
-	chunkSize = 500
-) {
-	for (let index = 0; index < items.length; index += chunkSize) {
-		await createMany(items.slice(index, index + chunkSize));
-	}
-	console.log(`Loaded ${items.length} ${label}.`);
-}
+const questionRows = dataGovQuestions.map((question) => ({
+	id: question.id,
+	number: question.number,
+	house: toPrismaEnum(question.house),
+	date: date(question.date),
+	ministry: question.ministry,
+	subject: question.subject,
+	answer_status: toPrismaEnum(question.answer_status),
+	source_url: question.source_url,
+	is_demo_seed: question.isDemoSeed
+}));
+
+const timelineRows = dataGovTimelineEvents.map((event) => ({
+	id: event.id,
+	date: date(event.date),
+	house: toPrismaEnum(event.house),
+	type: toPrismaEnum(event.type),
+	title: event.title,
+	description: event.description,
+	related_bill_id: event.related_bill_id,
+	source_url: event.source_url,
+	is_demo_seed: event.isDemoSeed
+}));
 
 async function main() {
-	await prisma.timelineEvent.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
-	await prisma.question.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
-	console.log('Cleared previous OGD question/timeline rows.');
+	guardNonEmpty('data.gov question catalog rows', questionRows.length, flags['allow-empty'], log);
 
-	await createManyInChunks(
-		'OGD question catalog rows',
-		dataGovQuestions.map((question) => ({
-			id: question.id,
-			number: question.number,
-			house: toPrismaEnum(question.house),
-			date: date(question.date),
-			ministry: question.ministry,
-			subject: question.subject,
-			answer_status: toPrismaEnum(question.answer_status),
-			source_url: question.source_url,
-			is_demo_seed: question.isDemoSeed
-		})),
-		(data) => prisma.question.createMany({ data, skipDuplicates: true })
-	);
+	const sourceCounts = {
+		questions: questionRows.length,
+		timelineEvents: timelineRows.length
+	};
+	const existingCounts = {
+		questions: await prisma.question.count({ where: { id: { startsWith: 'data-gov-' } } }),
+		timelineEvents: await prisma.timelineEvent.count({ where: { id: { startsWith: 'data-gov-' } } })
+	};
 
-	await createManyInChunks(
-		'OGD timeline events',
-		dataGovTimelineEvents.map((event) => ({
-			id: event.id,
-			date: date(event.date),
-			house: toPrismaEnum(event.house),
-			type: toPrismaEnum(event.type),
-			title: event.title,
-			description: event.description,
-			related_bill_id: event.related_bill_id,
-			source_url: event.source_url,
-			is_demo_seed: event.isDemoSeed
-		})),
-		(data) => prisma.timelineEvent.createMany({ data, skipDuplicates: true })
-	);
+	log.info(`source records:   ${formatCountMap(sourceCounts)}`);
+	log.info(`existing rows:    ${formatCountMap(existingCounts)}`);
 
-	console.log('OGD question catalog upsert complete.');
+	if (flags['dry-run']) {
+		log.info(`target:           ${safeDbUrl(process.env.DATABASE_URL ?? '')} (tables: Question, TimelineEvent)`);
+		log.info('dry-run; no changes made.');
+		return;
+	}
+
+	const insertedCounts = await prisma.$transaction(async (tx) => {
+		await tx.timelineEvent.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
+		await tx.question.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
+
+		return {
+			questions: await chunkInsert(questionRows, 500, (chunk) => tx.question.createMany({ data: chunk, skipDuplicates: true })),
+			timelineEvents: await chunkInsert(timelineRows, 500, (chunk) => tx.timelineEvent.createMany({ data: chunk, skipDuplicates: true }))
+		};
+	});
+
+	log.info(`inserted rows:    ${formatCountMap(insertedCounts)} (total=${sumCounts(insertedCounts).toLocaleString('en-IN')})`);
+	log.info(`target:           ${safeDbUrl(process.env.DATABASE_URL ?? '')} (tables: Question, TimelineEvent)`);
+	log.info('OGD question catalog upsert complete.');
 }
 
 main()
 	.catch((error) => {
-		console.error(error);
+		log.error(error instanceof Error ? error.message : String(error));
 		process.exit(1);
 	})
 	.finally(async () => {

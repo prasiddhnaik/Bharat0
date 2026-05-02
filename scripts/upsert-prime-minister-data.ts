@@ -1,10 +1,29 @@
 import { lokSabhaPowerSnapshots } from '../src/lib/domain/parliament-houses';
 import { primeMinisterProfiles } from '../src/lib/domain/prime-minister-profiles';
 import { createPrismaClient } from '../src/lib/server/db/prisma';
+import { assertEnv, safeDbUrl } from './lib/envCheck';
+import { parseFlags } from './lib/flags';
+import { makeLogger } from './lib/logger';
 
+const log = makeLogger('PM-DATA');
+const flags = parseFlags(['dry-run']);
+assertEnv(['DATABASE_URL'], log);
 const prisma = createPrismaClient();
 
 async function main() {
+	const existingCounts = {
+		profiles: await prisma.primeMinisterProfile.count(),
+		powerSnapshots: await prisma.lokSabhaPowerSnapshot.count()
+	};
+	log.info(`source records:   profiles=${primeMinisterProfiles.length.toLocaleString('en-IN')}, powerSnapshots=${lokSabhaPowerSnapshots.length.toLocaleString('en-IN')}`);
+	log.info(`existing rows:    profiles=${existingCounts.profiles.toLocaleString('en-IN')}, powerSnapshots=${existingCounts.powerSnapshots.toLocaleString('en-IN')}`);
+
+	if (flags['dry-run']) {
+		log.info(`target:           ${safeDbUrl(process.env.DATABASE_URL ?? '')} (tables: PrimeMinisterProfile, LokSabhaPowerSnapshot)`);
+		log.info('dry-run; no changes made.');
+		return;
+	}
+
 	for (const profile of primeMinisterProfiles) {
 		await prisma.primeMinisterProfile.upsert({
 			where: { source_url: profile.sourceUrl },
@@ -69,13 +88,13 @@ async function main() {
 		});
 	}
 
-	console.log(`Upserted ${primeMinisterProfiles.length} Prime Minister profiles.`);
-	console.log(`Upserted ${lokSabhaPowerSnapshots.length} Lok Sabha power snapshots.`);
+	log.info(`inserted rows:    upserted profiles=${primeMinisterProfiles.length.toLocaleString('en-IN')}, powerSnapshots=${lokSabhaPowerSnapshots.length.toLocaleString('en-IN')}`);
+	log.info(`target:           ${safeDbUrl(process.env.DATABASE_URL ?? '')} (tables: PrimeMinisterProfile, LokSabhaPowerSnapshot)`);
 }
 
 main()
 	.catch((error) => {
-		console.error(error);
+		log.error(error instanceof Error ? error.message : String(error));
 		process.exit(1);
 	})
 	.finally(async () => {

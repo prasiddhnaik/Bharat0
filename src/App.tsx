@@ -32,6 +32,7 @@ import {
 } from '$lib/domain/types';
 import { DEFAULT_BILLS_PAGE_SIZE, parseDashboardFilters, type DashboardFilters } from '$lib/domain/dashboard-filters';
 import { getActPartyPositionSourceRefs, getActPartyPositions, getBillPartyPositions, type PartyPositionSide } from '$lib/domain/party-positions';
+import { formatEconomicImpactForPanel } from '$lib/domain/economic-impact';
 import {
 	getLokSabhaPowerSnapshotForPrimeMinister,
 	parliamentHouseSnapshots,
@@ -268,12 +269,22 @@ function App() {
 	const selectedAct = selectedActId ? dashboard.acts.find((act) => act.id === selectedActId) ?? null : null;
 	const selectedActLinkedBill = selectedAct ? actBillsById.get(selectedAct.linked_bill_id) ?? null : null;
 	const selectedDebate = selectedDebateId ? dashboard.debates.find((debate) => debate.id === selectedDebateId) ?? null : null;
+	const [aiAnalysisByKey, setAiAnalysisByKey] = useState<Record<string, BillAnalysis>>({});
+	const [aiAnalysisLoadingKey, setAiAnalysisLoadingKey] = useState<string | null>(null);
+	const [aiAnalysisFailedKeys, setAiAnalysisFailedKeys] = useState<Record<string, true>>({});
 	const localSelectedAnalysis = useMemo(
 		() => (selectedBillForRender ? buildBillAnalysis(selectedBillForRender.bill, selectedBillForRender.actions, dashboard.filters.language) : null),
 		[selectedBillForRender, dashboard.filters.language]
 	);
-	const selectedBillAnalysis = localSelectedAnalysis;
-	const selectedAnalysisStatus: AnalysisStatus = 'local';
+	const selectedAnalysisKey = selectedBillForRender ? `${selectedBillForRender.bill.id}:${dashboard.filters.language}` : null;
+	const hasAiAnalysis = selectedAnalysisKey ? Boolean(aiAnalysisByKey[selectedAnalysisKey]) : false;
+	const hasAiAnalysisFailed = selectedAnalysisKey ? Boolean(aiAnalysisFailedKeys[selectedAnalysisKey]) : false;
+	const selectedBillAnalysis = selectedAnalysisKey ? (aiAnalysisByKey[selectedAnalysisKey] ?? localSelectedAnalysis) : null;
+	const selectedAnalysisStatus: AnalysisStatus = selectedAnalysisKey && aiAnalysisByKey[selectedAnalysisKey]?.source !== 'local'
+		? 'ai'
+		: aiAnalysisLoadingKey === selectedAnalysisKey
+			? 'loading'
+			: 'local';
 
 	const navigateInApp = useCallback((href: string) => {
 		const url = new URL(href, window.location.href);
@@ -291,6 +302,40 @@ function App() {
 		window.addEventListener('popstate', handlePopState);
 		return () => window.removeEventListener('popstate', handlePopState);
 	}, []);
+
+	useEffect(() => {
+		if (!selectedBillForRender || !selectedAnalysisKey || hasAiAnalysis || hasAiAnalysisFailed) {
+			return;
+		}
+
+		const billId = selectedBillForRender.bill.id;
+		const analysisKey = selectedAnalysisKey;
+		let cancelled = false;
+
+		async function loadAiAnalysis() {
+			setAiAnalysisLoadingKey(analysisKey);
+			try {
+				const analysis = await requestAiBillAnalysis(billId, dashboard.filters.language, analysisKey);
+				if (!cancelled) {
+					setAiAnalysisByKey((current) => ({ ...current, [analysisKey]: analysis }));
+				}
+			} catch (error) {
+				if (!cancelled) {
+					console.warn('AI bill analysis unavailable; using local analysis.', error);
+					setAiAnalysisFailedKeys((current) => ({ ...current, [analysisKey]: true }));
+				}
+			} finally {
+				if (!cancelled) {
+					setAiAnalysisLoadingKey((current) => (current === analysisKey ? null : current));
+				}
+			}
+		}
+
+		void loadAiAnalysis();
+		return () => {
+			cancelled = true;
+		};
+	}, [selectedBillForRender, selectedAnalysisKey, dashboard.filters.language, hasAiAnalysis, hasAiAnalysisFailed]);
 
 	return (
 		<AppShell
@@ -1818,10 +1863,41 @@ type BillAnalysis = {
 	recordCoverage: string;
 	dataQuality: string;
 	nextWatchItems: string[];
-	source?: 'local' | 'groq';
+	source?: 'local' | 'groq' | 'nvidia';
 	model?: string;
 	generatedAt?: string;
 };
+
+type AiBillAnalysisResponse = {
+	source: 'groq' | 'nvidia';
+	provider: 'groq' | 'nvidia';
+	model: string;
+	generatedAt: string;
+	analysis: BillAnalysis;
+};
+
+const aiAnalysisClientRequests = new Map<string, Promise<BillAnalysis>>();
+
+function requestAiBillAnalysis(billId: string, language: Language, analysisKey: string) {
+	const existing = aiAnalysisClientRequests.get(analysisKey);
+	if (existing) return existing;
+
+	const request = fetch(`/api/bills/${encodeURIComponent(billId)}/ai-analysis?lang=${language}`)
+		.then(async (response) => {
+			if (!response.ok) {
+				throw new Error(`AI analysis request failed with HTTP ${response.status}.`);
+			}
+			const payload = (await response.json()) as AiBillAnalysisResponse;
+			return payload.analysis;
+		})
+		.catch((error) => {
+			aiAnalysisClientRequests.delete(analysisKey);
+			throw error;
+		});
+
+	aiAnalysisClientRequests.set(analysisKey, request);
+	return request;
+}
 
 function BillAnalysisPanel({
 	bill,
@@ -1949,68 +2025,8 @@ function isGeneratedSansadSummary(summary: string) {
 	return / is a .* from .* with status .* in the Sansad legislation dataset\.?$/i.test(summary.trim());
 }
 
-function getBillAgeYears(bill: Bill) {
-	const introducedYear = Number(bill.introduced_on.slice(0, 4));
-	const currentYear = new Date().getFullYear();
-	return Number.isFinite(introducedYear) ? currentYear - introducedYear : null;
-}
-
 function getGdpImpactFallback(bill: Bill) {
-	const ministry = ministryLabel(bill.ministry);
-	const normalizedTitle = getBillTitle(bill, 'en').toLowerCase();
-	const normalizedSummary = bill.summary?.toLowerCase() ?? '';
-	const combinedText = `${normalizedTitle} ${normalizedSummary} ${ministry.toLowerCase()}`;
-	const ageYears = getBillAgeYears(bill);
-	const isOlderThanTenYears = ageYears !== null && ageYears >= 10;
-	const timing = isOlderThanTenYears ? 'Long-run read' : 'Near-term read';
-	const evidenceLimit = bill.summary && !isGeneratedSansadSummary(bill.summary)
-		? 'Confidence is medium because the record has a usable summary, but no linked GDP, budget, or sector-output series yet.'
-		: 'Confidence is low until the bill text, budget notes, and sector data are connected.';
-	const channelRules: Array<{ match: RegExp; channel: string; direction: string; followUp: string }> = [
-		{
-			match: /appropriation|finance bill|tax|gst|customs|excise|budget|cess|finance/,
-			channel: 'fiscal policy, tax administration, public spending, borrowing needs, and disposable income',
-			direction: 'impact can be direct if rates, exemptions, or authorised expenditure change',
-			followUp: 'compare the bill clauses with Budget documents, tax receipts, and expenditure heads'
-		},
-		{
-			match: /company|corporate|insolvency|competition|commerce|industry|sez|special economic zone|investment/,
-			channel: 'business compliance costs, market entry, credit recovery, investment confidence, and formal-sector productivity',
-			direction: 'impact is usually indirect through firm behaviour and transaction costs',
-			followUp: 'check affected company, insolvency, competition, or sector-regulation provisions'
-		},
-		{
-			match: /health|medical|education|skill|university|school|labour|employment|workers|wage/,
-			channel: 'human capital, workforce participation, productivity, household costs, and public-service capacity',
-			direction: 'impact is generally medium-to-long run unless the bill changes large public spending or employer costs',
-			followUp: 'link provisions to enrolment, health access, labour-market, or scheme-spending indicators'
-		},
-		{
-			match: /transport|highway|rail|shipping|port|aviation|airport|power|electricity|energy|infrastructure|telecom/,
-			channel: 'infrastructure capacity, logistics costs, energy reliability, private investment, and sector productivity',
-			direction: 'impact can be material where the bill changes pricing, approvals, safety, or regulator powers',
-			followUp: 'connect the bill to project pipelines, tariffs, regulator orders, and sector output'
-		},
-		{
-			match: /agriculture|farm|fisher|animal husbandry|dairy|food|rural|land|water|environment|forest|climate/,
-			channel: 'rural incomes, land or resource use, food supply, environmental compliance, and climate-risk exposure',
-			direction: 'impact depends on whether the bill changes producer incentives, permits, compensation, or compliance costs',
-			followUp: 'check commodity prices, rural scheme spending, environmental clearance, and affected producer groups'
-		},
-		{
-			match: /home affairs|criminal|police|security|migration|citizenship|border|justice|court|tribunal|contract/,
-			channel: 'administrative certainty, dispute resolution, enforcement costs, migration rules, and investor or citizen compliance burden',
-			direction: 'GDP impact is mostly indirect unless enforcement costs or business/legal certainty change at scale',
-			followUp: 'map affected procedures, penalties, court capacity, and compliance obligations'
-		}
-	];
-	const selected = channelRules.find((rule) => rule.match.test(combinedText)) ?? {
-		channel: `public spending, compliance costs, investment incentives, productivity, and demand in ${ministry}`,
-		direction: `impact depends on whether this ${billTypeLabelsLocalized.en[bill.bill_type].toLowerCase()} changes obligations, funding, or implementation rules`,
-		followUp: 'extract the bill PDF into clauses and connect it to budget or sector indicators'
-	};
-
-	return `${timing}: the main GDP channels are ${selected.channel}. Expected direction: ${selected.direction}. Evidence: ${evidenceLimit} Next data to add: ${selected.followUp}.`;
+	return formatEconomicImpactForPanel(bill);
 }
 
 function inferBillBrief(bill: Bill, language: Language) {

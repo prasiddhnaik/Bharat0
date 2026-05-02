@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { createPrismaClient } from '../src/lib/server/db/prisma';
+import { assertEnv } from './lib/envCheck';
+import { makeLogger } from './lib/logger';
 
+const log = makeLogger('VERIFY-DB');
+assertEnv(['DATABASE_URL'], log);
 const prisma = createPrismaClient();
 
 try {
