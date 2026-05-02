@@ -95,19 +95,22 @@ async function main() {
 		return;
 	}
 
-	const insertedCounts = await prisma.$transaction(async (tx) => {
-		await tx.timelineEvent.deleteMany({ where: { id: { startsWith: 'prs-' } } });
-		await tx.billAction.deleteMany({ where: { id: { startsWith: 'prs-' } } });
-		await tx.bill.deleteMany({ where: { id: { startsWith: 'prs-' } } });
-		await tx.sittingDay.deleteMany({ where: { id: { startsWith: 'prs-' } } });
+	const insertedCounts = await prisma.$transaction(
+		async (tx) => {
+			await tx.timelineEvent.deleteMany({ where: { id: { startsWith: 'prs-' } } });
+			await tx.billAction.deleteMany({ where: { id: { startsWith: 'prs-' } } });
+			await tx.bill.deleteMany({ where: { id: { startsWith: 'prs-' } } });
+			await tx.sittingDay.deleteMany({ where: { id: { startsWith: 'prs-' } } });
 
-		return {
-			bills: await chunkInsert(billRows, 500, (chunk) => tx.bill.createMany({ data: chunk, skipDuplicates: true })),
-			actions: await chunkInsert(actionRows, 500, (chunk) => tx.billAction.createMany({ data: chunk, skipDuplicates: true })),
-			sittingDays: await chunkInsert(sittingDayRows, 500, (chunk) => tx.sittingDay.createMany({ data: chunk, skipDuplicates: true })),
-			timelineEvents: await chunkInsert(timelineRows, 500, (chunk) => tx.timelineEvent.createMany({ data: chunk, skipDuplicates: true }))
-		};
-	});
+			return {
+				bills: await chunkInsert(billRows, 500, (chunk) => tx.bill.createMany({ data: chunk, skipDuplicates: true })),
+				actions: await chunkInsert(actionRows, 500, (chunk) => tx.billAction.createMany({ data: chunk, skipDuplicates: true })),
+				sittingDays: await chunkInsert(sittingDayRows, 500, (chunk) => tx.sittingDay.createMany({ data: chunk, skipDuplicates: true })),
+				timelineEvents: await chunkInsert(timelineRows, 500, (chunk) => tx.timelineEvent.createMany({ data: chunk, skipDuplicates: true }))
+			};
+		},
+		{ timeout: 60_000 }
+	);
 
 	log.info(`inserted rows:    ${formatCountMap(insertedCounts)} (total=${sumCounts(insertedCounts).toLocaleString('en-IN')})`);
 	log.info(`target:           ${safeDbUrl(process.env.DATABASE_URL ?? '')} (tables: Bill, BillAction, SittingDay, TimelineEvent)`);

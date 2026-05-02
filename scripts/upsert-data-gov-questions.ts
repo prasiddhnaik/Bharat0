@@ -64,15 +64,18 @@ async function main() {
 		return;
 	}
 
-	const insertedCounts = await prisma.$transaction(async (tx) => {
-		await tx.timelineEvent.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
-		await tx.question.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
+	const insertedCounts = await prisma.$transaction(
+		async (tx) => {
+			await tx.timelineEvent.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
+			await tx.question.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
 
-		return {
-			questions: await chunkInsert(questionRows, 500, (chunk) => tx.question.createMany({ data: chunk, skipDuplicates: true })),
-			timelineEvents: await chunkInsert(timelineRows, 500, (chunk) => tx.timelineEvent.createMany({ data: chunk, skipDuplicates: true }))
-		};
-	});
+			return {
+				questions: await chunkInsert(questionRows, 500, (chunk) => tx.question.createMany({ data: chunk, skipDuplicates: true })),
+				timelineEvents: await chunkInsert(timelineRows, 500, (chunk) => tx.timelineEvent.createMany({ data: chunk, skipDuplicates: true }))
+			};
+		},
+		{ timeout: 60_000 }
+	);
 
 	log.info(`inserted rows:    ${formatCountMap(insertedCounts)} (total=${sumCounts(insertedCounts).toLocaleString('en-IN')})`);
 	log.info(`target:           ${safeDbUrl(process.env.DATABASE_URL ?? '')} (tables: Question, TimelineEvent)`);
