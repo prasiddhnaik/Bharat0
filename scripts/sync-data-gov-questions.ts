@@ -87,6 +87,7 @@ async function main() {
 			summary: `Open Government Data Platform India catalog for ${isLokSabha ? 'Lok Sabha' : 'Rajya Sabha'} verbatim debate feeds. Metadata status: ${sourceNote(catalog)}.`,
 			source_url: result.finalUrl!,
 			transcript_language: 'English',
+			members: [],
 			debate_type: 'Verbatim debates catalog',
 			isDemoSeed: false
 		};

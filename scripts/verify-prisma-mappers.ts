@@ -4,6 +4,7 @@ import {
 	fromDomainHouse,
 	toDomainBill,
 	toDomainBillAction,
+	toDomainDebate,
 	toDomainBillStage,
 	toDomainHouse,
 	toDomainTimelineEvent
@@ -67,6 +68,31 @@ const event = toDomainTimelineEvent({
 assert.equal(event.type, 'bill_referred_committee');
 assert.equal(event.related_bill_id, undefined);
 assert.equal(event.isDemoSeed, false);
+
+const debate = toDomainDebate({
+	id: 'debate-test',
+	house: 'LOK_SABHA',
+	date: new Date('2025-03-26T00:00:00+05:30'),
+	title: 'Tribhuvan Sahkari University Bill, 2025 - passed',
+	summary: 'Source-backed proceeding record.',
+	source_url: 'https://eparlib.sansad.in/handle/123456789/2991119?view_type=search',
+	transcript_url: 'https://eparlib.sansad.in/bitstream/123456789/2991119/1/2667.pdf',
+	transcript_pages: 80,
+	transcript_byte_length: 1_258_291,
+	transcript_language: 'Original',
+	members: [],
+	lok_sabha_number: '18',
+	session_number: 'IV',
+	debate_type: 'GOVERNMENT BILLS',
+	related_bill_id: 'tribhuvan-sahkari-university-bill-2025',
+	is_demo_seed: false
+});
+assert.equal(debate.house, 'lok-sabha');
+assert.equal(debate.date, '2025-03-26');
+assert.deepEqual(debate.members, []);
+assert.equal(debate.related_bill_id, 'tribhuvan-sahkari-university-bill-2025');
+assert.equal(debate.transcript_byte_length, 1_258_291);
+assert.equal(debate.isDemoSeed, false);
 
 assert.throws(() => toDomainHouse('UNKNOWN_HOUSE'), /Unsupported Prisma House/);
 assert.throws(() => toDomainBillStage('UNKNOWN_STAGE'), /Unsupported Prisma BillStage/);

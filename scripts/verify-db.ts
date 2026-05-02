@@ -8,11 +8,13 @@ assertEnv(['DATABASE_URL'], log);
 const prisma = createPrismaClient();
 
 try {
-	const [billCount, actionCount, timelineCount, actCount, latestBill] = await Promise.all([
+	const [billCount, actionCount, timelineCount, actCount, debateCount, debateTranscriptCount, latestBill] = await Promise.all([
 		prisma.bill.count(),
 		prisma.billAction.count(),
 		prisma.timelineEvent.count(),
 		prisma.act.count(),
+		prisma.debate.count(),
+		prisma.debateTranscript.count(),
 		prisma.bill.findFirst({ orderBy: { latest_action_date: 'desc' } })
 	]);
 
@@ -20,6 +22,8 @@ try {
 	assert.ok(actionCount >= 2400, `expected at least 2400 bill actions, found ${actionCount}`);
 	assert.ok(timelineCount >= 2400, `expected at least 2400 timeline events, found ${timelineCount}`);
 	assert.ok(actCount >= 200, `expected at least 200 acts, found ${actCount}`);
+	assert.ok(debateCount >= 6, `expected at least 6 debate records, found ${debateCount}`);
+	assert.ok(debateTranscriptCount >= 3, `expected at least 3 debate transcript metadata records, found ${debateTranscriptCount}`);
 	assert.ok(latestBill, 'expected latest bill record');
 
 	console.log(
@@ -29,6 +33,8 @@ try {
 				billActions: actionCount,
 				timelineEvents: timelineCount,
 				acts: actCount,
+				debates: debateCount,
+				debateTranscripts: debateTranscriptCount,
 				latestBill: latestBill.title_en
 			},
 			null,

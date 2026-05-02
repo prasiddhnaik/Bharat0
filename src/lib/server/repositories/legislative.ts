@@ -1,7 +1,7 @@
 import type { BillDetailData, DashboardData } from '$lib/data/view-model';
-import { dataGovDebates, dataGovMeta } from '$lib/data/generated/data-gov-questions';
+import { dataGovMeta } from '$lib/data/generated/data-gov-questions';
 import type { DashboardFilters } from '$lib/domain/dashboard-filters';
-import type { Bill, Debate, SourceEntry, TimelineEvent } from '$lib/domain/types';
+import type { Bill, SourceEntry, TimelineEvent } from '$lib/domain/types';
 import {
 	fromDomainBillStage,
 	fromDomainHouse,
@@ -10,6 +10,7 @@ import {
 	toDomainBillAction,
 	toDomainBillStage,
 	toDomainCommittee,
+	toDomainDebate,
 	toDomainQuestion,
 	toDomainSittingDay,
 	toDomainTimelineEvent
@@ -21,7 +22,7 @@ import {
 } from '$lib/ingestion/source-adapters';
 import { buildTimelineDateRail, groupTimelineEventsByDate } from '$lib/domain/timeline-view';
 import { getPrimeMinisterTermDateRange, PRIME_MINISTER_TERMS, type PrimeMinisterFilter } from '$lib/domain/prime-ministers';
-import { getSourceUrlPatternsForFilter, matchesSourceUrl } from '$lib/domain/source-filters';
+import { getSourceUrlPatternsForFilter } from '$lib/domain/source-filters';
 
 export type RepositoryMode = 'seed' | 'prisma';
 
@@ -130,108 +131,6 @@ const repositorySources: SourceEntry[] = [
 	}
 ];
 
-const repositoryDebates: Debate[] = [
-	...dataGovDebates,
-	{
-		id: 'debate-income-tax-bill-introduced',
-		house: 'lok-sabha',
-		date: '2025-02-13',
-		title: 'The Income-Tax Bill, 2025 - introduced',
-		summary: 'Parliament Digital Library records Government Bills proceedings for introduction of the Income-Tax Bill, 2025.',
-		source_url: 'https://eparlib.sansad.in/handle/123456789/2991966?view_type=search',
-		transcript_url: 'https://eparlib.sansad.in/bitstream/123456789/2991966/1/1962.pdf',
-		transcript_pages: 3,
-		transcript_size: '148.77 kB',
-		transcript_language: 'Original',
-		members: ['Nirmala Sitharaman', 'Om Birla', 'Sougata Ray'],
-		lok_sabha_number: '18',
-		session_number: 'IV',
-		debate_type: 'GOVERNMENT BILLS',
-		isDemoSeed: false
-	},
-	{
-		id: 'debate-dpdp-bill-introduced',
-		house: 'lok-sabha',
-		date: '2023-08-03',
-		title: 'The Digital Personal Data Protection Bill, 2023 - introduced',
-		summary: 'Parliament Digital Library records introduction proceedings for the Digital Personal Data Protection Bill, 2023.',
-		source_url: 'https://eparlib.sansad.in/handle/123456789/2505325?view_type=search',
-		transcript_url: 'https://eparlib.sansad.in/bitstream/123456789/2505325/1/11960.pdf',
-		transcript_pages: 5,
-		transcript_size: '2.29 MB',
-		transcript_language: 'Original',
-		members: ['Adhir Ranjan Chowdhury', 'Asaduddin Owaisi', 'Ashwini Vaishnaw', 'Gaurav Gogoi', 'Manish Tewari', 'N. K. Premachandran', 'Rajendra Agrawal', 'Sougata Ray', 'Shashi Tharoor', 'Supriya Sule'],
-		lok_sabha_number: '17',
-		session_number: 'XII',
-		debate_type: 'GOVERNMENT BILLS',
-		isDemoSeed: false
-	},
-	{
-		id: 'debate-tribhuvan-bill-passed',
-		house: 'lok-sabha',
-		date: '2025-03-26',
-		title: 'Tribhuvan Sahkari University Bill, 2025 - passed',
-		summary: 'Parliament Digital Library records Lok Sabha proceedings for passage of the Tribhuvan Sahkari University Bill, 2025.',
-		source_url: 'https://eparlib.sansad.in/handle/123456789/2991119?view_type=search',
-		transcript_url: 'https://eparlib.sansad.in/bitstream/123456789/2991119/1/2667.pdf',
-		transcript_pages: 80,
-		transcript_size: '1.2 MB',
-		transcript_language: 'Original',
-		members: [
-			'Amit Shah',
-			'Sandhya Ray',
-			'Geniben Nagaji Thakor',
-			'Mitesh Patel Bakabhai',
-			'Virendra Singh',
-			'Sougata Ray',
-			'Nishikant Dubey',
-			'K E Prakash',
-			'Sribharat Mathukumilli',
-			'Dileshwar Kamait',
-			'Bhaskar Murlidhar Bhagare',
-			'Arvind Ganpat Sawant',
-			'Naresh Ganpat Mhaske',
-			'M K Raghavan',
-			'Arun Govil',
-			'Abhay Kumar Sinha',
-			'Aditya Yadav',
-			'Kadiyam Kavya',
-			'Ganesh Singh',
-			'Sachithanantham R',
-			'Gumma Thanuja Rani',
-			'Rajesh Ranjan',
-			'Bharti Pardhi',
-			'Pralhad Joshi',
-			'M P Abdussamad Samadani',
-			'K. Francis George',
-			'N K Premachandran',
-			'Prashant Yadaorao Padole',
-			'Janardan Mishra',
-			'Balashowry Vallabhaneni',
-			'Gurmeet Singh Meet Hayer',
-			'Eatala Rajender',
-			'Vishaldada Prakashbapu Patil',
-			'Chhotelal',
-			'Jayanta Kumar Roy',
-			'Om Birla',
-			'K Radhakrishnan'
-		],
-		lok_sabha_number: '18',
-		session_number: 'IV',
-		debate_type: 'GOVERNMENT BILLS',
-		isDemoSeed: false
-	},
-	{
-		id: 'debate-aircraft-objects-bill-introduced',
-		house: 'rajya-sabha',
-		date: '2025-02-10',
-		title: 'Protection of Interests in Aircraft Objects Bill, 2025 - introduced',
-		summary: 'PRS bill text and bill tracker record introduction in Rajya Sabha on 10 February 2025.',
-		source_url: 'https://prsindia.org/billtrack/the-protection-of-interests-in-aircraft-objects-bill-2025',
-		isDemoSeed: false
-	}
-];
-
 function sourceUrlWhereForFilter(sourceFilter: string, fieldName = 'source_url') {
 	if (sourceFilter === 'all') return {};
 	const patterns = getSourceUrlPatternsForFilter(sourceFilter);
@@ -333,6 +232,7 @@ type PrismaReadClient = {
 	sittingDay: FindManyModel<Parameters<typeof toDomainSittingDay>[0]>;
 	committee: FindManyModel<Parameters<typeof toDomainCommittee>[0]>;
 	question: FindManyModel<Parameters<typeof toDomainQuestion>[0]>;
+	debate: FindManyModel<Parameters<typeof toDomainDebate>[0]> & CountModel;
 	act: FindManyModel<Parameters<typeof toDomainAct>[0]> & CountModel;
 };
 
@@ -436,26 +336,44 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				Object.keys(actLinkedBillWhere).length > 0 ? { linked_bill: actLinkedBillWhere } : {},
 				actQueryWhere
 			);
-				const billFindArgs = {
-					where: billWhere,
-					orderBy: { latest_action_date: 'desc' },
-					...(filters.section === 'overview' && !timelineNeedsBillLookup ? { take: 5 } : {}),
-					...(filters.section === 'bills' ? { skip: (filters.page - 1) * filters.pageSize, take: filters.pageSize } : {})
-				};
-				const timelineFindArgs = {
-					where: mergeWhereClauses(
-						sourceUrlWhereForFilter(filters.source),
-						filters.house === 'all' ? {} : { house: fromDomainHouse(filters.house) },
-						Object.keys(primeMinisterDateWhere).length > 0 ? { date: primeMinisterDateWhere } : {}
-					),
-					orderBy: { date: 'desc' },
-					...(filters.section === 'overview' ? { take: 24 } : {})
-				};
-				const actFindArgs = {
-					where: actWhere,
-					orderBy: [{ year: 'desc' }, { title: 'asc' }],
-					...(filters.section === 'acts' ? { skip: (filters.page - 1) * filters.pageSize, take: filters.pageSize } : {})
-				};
+			const debateWhere = mergeWhereClauses(
+				sourceUrlWhereForFilter(filters.source),
+				filters.house === 'all' ? {} : { house: fromDomainHouse(filters.house) },
+				filters.query.trim()
+					? {
+							OR: [
+								{ title: { contains: filters.query, mode: 'insensitive' } },
+								{ summary: { contains: filters.query, mode: 'insensitive' } },
+								{ debate_type: { contains: filters.query, mode: 'insensitive' } }
+							]
+						}
+					: {}
+			);
+			const billFindArgs = {
+				where: billWhere,
+				orderBy: { latest_action_date: 'desc' },
+				...(filters.section === 'overview' && !timelineNeedsBillLookup ? { take: 5 } : {}),
+				...(filters.section === 'bills' ? { skip: (filters.page - 1) * filters.pageSize, take: filters.pageSize } : {})
+			};
+			const timelineFindArgs = {
+				where: mergeWhereClauses(
+					sourceUrlWhereForFilter(filters.source),
+					filters.house === 'all' ? {} : { house: fromDomainHouse(filters.house) },
+					Object.keys(primeMinisterDateWhere).length > 0 ? { date: primeMinisterDateWhere } : {}
+				),
+				orderBy: { date: 'desc' },
+				...(filters.section === 'overview' ? { take: 24 } : {})
+			};
+			const debateFindArgs = {
+				where: debateWhere,
+				orderBy: { date: 'desc' },
+				...(filters.section === 'debates' ? { skip: (filters.page - 1) * filters.pageSize, take: filters.pageSize } : {})
+			};
+			const actFindArgs = {
+				where: actWhere,
+				orderBy: [{ year: 'desc' }, { title: 'asc' }],
+				...(filters.section === 'acts' ? { skip: (filters.page - 1) * filters.pageSize, take: filters.pageSize } : {})
+			};
 
 			const [
 				billRows,
@@ -463,19 +381,22 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				sittingDayRows,
 				committeeRows,
 				questionRows,
+				debateRows,
 				actRows,
 				filteredBillsTracked,
 				stageCountRows,
 				areaCountRows,
 				primeMinisterCounts,
+				filteredDebatesTracked,
 				filteredActsTracked,
 				totalBillsTracked
-				] = await Promise.all([
-					shouldFetchBills ? prisma.bill.findMany(billFindArgs) : Promise.resolve([]),
-					needsTimeline ? prisma.timelineEvent.findMany(timelineFindArgs) : Promise.resolve([]),
-					needsTimeline ? prisma.sittingDay.findMany({ orderBy: { date: 'desc' }, ...(filters.section === 'overview' ? { take: 120 } : {}) }) : Promise.resolve([]),
+			] = await Promise.all([
+				shouldFetchBills ? prisma.bill.findMany(billFindArgs) : Promise.resolve([]),
+				needsTimeline ? prisma.timelineEvent.findMany(timelineFindArgs) : Promise.resolve([]),
+				needsTimeline ? prisma.sittingDay.findMany({ orderBy: { date: 'desc' }, ...(filters.section === 'overview' ? { take: 120 } : {}) }) : Promise.resolve([]),
 				needsCommittees ? prisma.committee.findMany({ where: sourceUrlWhereForFilter(filters.source), orderBy: { name: 'asc' } }) : Promise.resolve([]),
 				needsQuestions ? prisma.question.findMany({ where: sourceUrlWhereForFilter(filters.source), orderBy: { date: 'desc' } }) : Promise.resolve([]),
+				needsDebates ? prisma.debate.findMany(debateFindArgs) : Promise.resolve([]),
 				needsActs ? prisma.act.findMany(actFindArgs) : Promise.resolve([]),
 				prisma.bill.count({ where: billWhere }),
 				prisma.bill.groupBy({ by: ['current_stage'], where: billStageCountWhere, _count: { _all: true } }),
@@ -495,6 +416,7 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 						return { id: term.id, count };
 					})
 				),
+				needsDebates ? prisma.debate.count({ where: debateWhere }) : Promise.resolve(0),
 				needsActs ? prisma.act.count({ where: actWhere }) : Promise.resolve(0),
 				prisma.bill.count()
 			]);
@@ -515,19 +437,7 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 			});
 			const sittingDays = sittingDayRows.map(toDomainSittingDay);
 			const committees = committeeRows.map(toDomainCommittee);
-			const debates = needsDebates
-				? repositoryDebates
-						.filter((debate) => {
-							const matchesHouse = filters.house === 'all' || debate.house === filters.house;
-							const matchesSource = matchesSourceUrl(debate.source_url, filters.source);
-							const matchesQuery =
-								!query ||
-								debate.title.toLowerCase().includes(query) ||
-								debate.summary.toLowerCase().includes(query);
-							return matchesHouse && matchesSource && matchesQuery;
-						})
-						.sort((left, right) => right.date.localeCompare(left.date))
-				: [];
+			const debates = debateRows.map(toDomainDebate);
 			const acts = actRows.map(toDomainAct);
 			const actLinkedBillIds = [...new Set(acts.map((act) => act.linked_bill_id))];
 			const actBillRows = actLinkedBillIds.length > 0
@@ -537,7 +447,7 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				filters.section === 'acts'
 					? filteredActsTracked
 					: filters.section === 'debates'
-						? debates.length
+						? filteredDebatesTracked
 						: filters.section === 'questions'
 							? questionRows.length
 							: filters.section === 'committees'

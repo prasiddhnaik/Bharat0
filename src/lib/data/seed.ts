@@ -37,6 +37,7 @@ import {
 	dataGovQuestions,
 	dataGovTimelineEvents
 } from './generated/data-gov-questions';
+import { manualDebates } from './manual-debates';
 
 export const seedMeta: { label: string; description: string; updatedAt: string } = {
 	label: 'Sansad, PRS, Parliament Digital Library, and OGD records',
@@ -762,107 +763,6 @@ export const committees: Committee[] = [
 
 export const questions: Question[] = dataGovQuestions;
 
-const curatedDebates: Debate[] = [
-	{
-		id: 'debate-income-tax-bill-introduced',
-		house: 'lok-sabha',
-		date: '2025-02-13',
-		title: 'The Income-Tax Bill, 2025 - introduced',
-		summary: 'Parliament Digital Library records Government Bills proceedings for introduction of the Income-Tax Bill, 2025.',
-		source_url: 'https://eparlib.sansad.in/handle/123456789/2991966?view_type=search',
-		transcript_url: 'https://eparlib.sansad.in/bitstream/123456789/2991966/1/1962.pdf',
-		transcript_pages: 3,
-		transcript_size: '148.77 kB',
-		transcript_language: 'Original',
-		members: ['Nirmala Sitharaman', 'Om Birla', 'Sougata Ray'],
-		lok_sabha_number: '18',
-		session_number: 'IV',
-		debate_type: 'GOVERNMENT BILLS',
-		isDemoSeed: false
-	},
-	{
-		id: 'debate-dpdp-bill-introduced',
-		house: 'lok-sabha',
-		date: '2023-08-03',
-		title: 'The Digital Personal Data Protection Bill, 2023 - introduced',
-		summary: 'Parliament Digital Library records introduction proceedings for the Digital Personal Data Protection Bill, 2023.',
-		source_url: 'https://eparlib.sansad.in/handle/123456789/2505325?view_type=search',
-		transcript_url: 'https://eparlib.sansad.in/bitstream/123456789/2505325/1/11960.pdf',
-		transcript_pages: 5,
-		transcript_size: '2.29 MB',
-		transcript_language: 'Original',
-		members: ['Adhir Ranjan Chowdhury', 'Asaduddin Owaisi', 'Ashwini Vaishnaw', 'Gaurav Gogoi', 'Manish Tewari', 'N. K. Premachandran', 'Rajendra Agrawal', 'Sougata Ray', 'Shashi Tharoor', 'Supriya Sule'],
-		lok_sabha_number: '17',
-		session_number: 'XII',
-		debate_type: 'GOVERNMENT BILLS',
-		isDemoSeed: false
-	},
-	{
-		id: 'debate-tribhuvan-bill-passed',
-		house: 'lok-sabha',
-		date: '2025-03-26',
-		title: 'Tribhuvan Sahkari University Bill, 2025 - passed',
-		summary: 'Parliament Digital Library records Lok Sabha proceedings for passage of the Tribhuvan Sahkari University Bill, 2025.',
-		source_url: 'https://eparlib.sansad.in/handle/123456789/2991119?view_type=search',
-		transcript_url: 'https://eparlib.sansad.in/bitstream/123456789/2991119/1/2667.pdf',
-		transcript_pages: 80,
-		transcript_size: '1.2 MB',
-		transcript_language: 'Original',
-		members: [
-			'Amit Shah',
-			'Sandhya Ray',
-			'Geniben Nagaji Thakor',
-			'Mitesh Patel Bakabhai',
-			'Virendra Singh',
-			'Sougata Ray',
-			'Nishikant Dubey',
-			'K E Prakash',
-			'Sribharat Mathukumilli',
-			'Dileshwar Kamait',
-			'Bhaskar Murlidhar Bhagare',
-			'Arvind Ganpat Sawant',
-			'Naresh Ganpat Mhaske',
-			'M K Raghavan',
-			'Arun Govil',
-			'Abhay Kumar Sinha',
-			'Aditya Yadav',
-			'Kadiyam Kavya',
-			'Ganesh Singh',
-			'Sachithanantham R',
-			'Gumma Thanuja Rani',
-			'Rajesh Ranjan',
-			'Bharti Pardhi',
-			'Pralhad Joshi',
-			'M P Abdussamad Samadani',
-			'K. Francis George',
-			'N K Premachandran',
-			'Prashant Yadaorao Padole',
-			'Janardan Mishra',
-			'Balashowry Vallabhaneni',
-			'Gurmeet Singh Meet Hayer',
-			'Eatala Rajender',
-			'Vishaldada Prakashbapu Patil',
-			'Chhotelal',
-			'Jayanta Kumar Roy',
-			'Om Birla',
-			'K Radhakrishnan'
-		],
-		lok_sabha_number: '18',
-		session_number: 'IV',
-		debate_type: 'GOVERNMENT BILLS',
-		isDemoSeed: false
-	},
-	{
-		id: 'debate-aircraft-objects-bill-introduced',
-		house: 'rajya-sabha',
-		date: '2025-02-10',
-		title: 'Protection of Interests in Aircraft Objects Bill, 2025 - introduced',
-		summary: 'PRS bill text and bill tracker record introduction in Rajya Sabha on 10 February 2025.',
-		source_url: 'https://prsindia.org/billtrack/the-protection-of-interests-in-aircraft-objects-bill-2025',
-		isDemoSeed: false
-	}
-];
-
 const curatedActs: Act[] = [
 	{
 		id: 'finance-act-2025',
@@ -950,7 +850,7 @@ export const acts: Act[] = mergeById(
 	curatedActs,
 	sansadActs.filter((act) => !curatedBillIds.has(act.linked_bill_id))
 );
-export const debates: Debate[] = mergeById(curatedDebates, dataGovDebates);
+export const debates: Debate[] = mergeById(manualDebates, dataGovDebates);
 
 export const sources: SourceEntry[] = [
 	{

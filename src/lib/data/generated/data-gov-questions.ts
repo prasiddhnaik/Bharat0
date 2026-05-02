@@ -195,6 +195,7 @@ export const dataGovDebates: Debate[] = [
 		"summary": "Open Government Data Platform India catalog for Rajya Sabha verbatim debate feeds. Metadata status: API unavailable; ZIP metadata advertised.",
 		"source_url": "https://delhi.data.gov.in/catalog/verbatim-debates-rajya-sabha-english",
 		"transcript_language": "English",
+		"members": [],
 		"debate_type": "Verbatim debates catalog",
 		"isDemoSeed": false
 	},
@@ -206,6 +207,7 @@ export const dataGovDebates: Debate[] = [
 		"summary": "Open Government Data Platform India catalog for Lok Sabha verbatim debate feeds. Metadata status: API unavailable; ZIP metadata advertised.",
 		"source_url": "https://delhi.data.gov.in/catalog/verbatim-debates-lok-sabha-english",
 		"transcript_language": "English",
+		"members": [],
 		"debate_type": "Verbatim debates catalog",
 		"isDemoSeed": false
 	}

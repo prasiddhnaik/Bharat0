@@ -29,9 +29,10 @@
 		"db:upsert:prs": "tsx scripts/upsert-prs-legislation.ts",
 		"db:upsert:pdl-pre2004": "tsx scripts/upsert-pdl-pre2004-legislation.ts",
 		"db:upsert:data-gov": "tsx scripts/upsert-data-gov-questions.ts",
+		"db:upsert:debates": "tsx scripts/upsert-debates.ts",
 		"db:upsert:pm": "tsx scripts/upsert-prime-minister-data.ts",
-		"db:upsert:all": "npm run db:upsert:prs && npm run db:upsert:pdl-pre2004 && npm run db:upsert:data-gov && npm run db:upsert:pm",
-		"db:upsert:all:dry-run": "npm run db:upsert:prs -- --dry-run && npm run db:upsert:pdl-pre2004 -- --dry-run && npm run db:upsert:data-gov -- --dry-run && npm run db:upsert:pm -- --dry-run",
+		"db:upsert:all": "npm run db:upsert:prs && npm run db:upsert:pdl-pre2004 && npm run db:upsert:data-gov && npm run db:upsert:debates && npm run db:upsert:pm",
+		"db:upsert:all:dry-run": "npm run db:upsert:prs -- --dry-run && npm run db:upsert:pdl-pre2004 -- --dry-run && npm run db:upsert:data-gov -- --dry-run && npm run db:upsert:debates -- --dry-run && npm run db:upsert:pm -- --dry-run",
 		"db:setup": "npm run db:generate && npm run db:push && npm run db:seed && npm run verify:db",
 		"sync:pdl-pre2004": "tsx scripts/sync-pdl-pre2004-legislation.ts",
 		"sync:prs": "tsx scripts/sync-prs-legislation.ts",
@@ -47,12 +48,14 @@
 		"verify:data-gov": "tsx scripts/verify-data-gov-ingestion.ts",
 		"verify:timeline": "tsx scripts/verify-timeline-view.ts",
 		"verify:ai-analysis": "tsx scripts/verify-ai-analysis.ts",
+		"verify:debate-upsert-rules": "tsx scripts/verify-debate-upsert-rules.ts",
+		"verify:debate-transcripts": "tsx scripts/verify-debate-transcripts.ts",
 		"verify:sources": "npm run verify:source-discovery",
 		"verify:generated": "tsx scripts/verify-generated-data.ts",
 		"verify:repos": "npm run verify:repositories && npm run verify:prisma-repository",
 		"verify:mappers": "npm run verify:prisma-mappers",
 		"verify:ai": "npm run verify:ai-analysis",
-		"verify:data-pipeline": "npm run verify:sources && npm run verify:generated && npm run verify:repos && npm run verify:mappers && npm run verify:ai"
+		"verify:data-pipeline": "npm run verify:sources && npm run verify:generated && npm run verify:repos && npm run verify:mappers && npm run verify:ai && npm run verify:debate-upsert-rules && npm run verify:debate-transcripts"
 	},
 	"prisma": {
 		"seed": "tsx prisma/seed.ts"

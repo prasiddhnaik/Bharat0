@@ -176,12 +176,13 @@ export type Debate = {
 	source_url: string;
 	transcript_url?: string;
 	transcript_pages?: number;
-	transcript_size?: string;
+	transcript_byte_length?: number;
 	transcript_language?: string;
-	members?: string[];
+	members: string[];
 	lok_sabha_number?: string;
 	session_number?: string;
 	debate_type?: string;
+	related_bill_id?: string;
 	isDemoSeed: boolean;
 };
 

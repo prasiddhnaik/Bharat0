@@ -5,6 +5,7 @@ import type {
 	BillStage,
 	BillType,
 	Committee,
+	Debate,
 	House,
 	Question,
 	SittingDay,
@@ -185,6 +186,25 @@ type PrismaQuestion = {
 	is_demo_seed: boolean;
 };
 
+type PrismaDebate = {
+	id: string;
+	house: string;
+	date: PrismaDate;
+	title: string;
+	summary: string;
+	source_url: string;
+	transcript_url: string | null;
+	transcript_pages: number | null;
+	transcript_byte_length: number | null;
+	transcript_language: string | null;
+	members: string[];
+	lok_sabha_number: string | null;
+	session_number: string | null;
+	debate_type: string | null;
+	related_bill_id: string | null;
+	is_demo_seed: boolean;
+};
+
 type PrismaAct = {
 	id: string;
 	title: string;
@@ -313,6 +333,27 @@ export function toDomainQuestion(row: PrismaQuestion): Question {
 		subject: row.subject,
 		answer_status: mapEnum(answerStatusFromPrisma, row.answer_status, 'AnswerStatus'),
 		source_url: row.source_url,
+		isDemoSeed: row.is_demo_seed
+	};
+}
+
+export function toDomainDebate(row: PrismaDebate): Debate {
+	return {
+		id: row.id,
+		house: toDomainHouse(row.house),
+		date: formatPrismaDate(row.date),
+		title: row.title,
+		summary: row.summary,
+		source_url: row.source_url,
+		...(row.transcript_url ? { transcript_url: row.transcript_url } : {}),
+		...(row.transcript_pages !== null ? { transcript_pages: row.transcript_pages } : {}),
+		...(row.transcript_byte_length !== null ? { transcript_byte_length: row.transcript_byte_length } : {}),
+		...(row.transcript_language ? { transcript_language: row.transcript_language } : {}),
+		members: row.members,
+		...(row.lok_sabha_number ? { lok_sabha_number: row.lok_sabha_number } : {}),
+		...(row.session_number ? { session_number: row.session_number } : {}),
+		...(row.debate_type ? { debate_type: row.debate_type } : {}),
+		...(row.related_bill_id ? { related_bill_id: row.related_bill_id } : {}),
 		isDemoSeed: row.is_demo_seed
 	};
 }

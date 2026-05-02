@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { createLegislativeRepository } from '../src/lib/server/repositories/legislative';
 
 const billCountWhereClauses: unknown[] = [];
+let debateFindManyCalls = 0;
+let debateCountCalls = 0;
 
 const fakePrisma = {
 	bill: {
@@ -94,6 +96,35 @@ const fakePrisma = {
 	sittingDay: { async findMany() { return []; } },
 	committee: { async findMany() { return []; } },
 	question: { async findMany() { return []; } },
+	debate: {
+		async findMany() {
+			debateFindManyCalls += 1;
+			return [
+				{
+					id: 'debate-tribhuvan-bill-passed',
+					house: 'LOK_SABHA',
+					date: new Date('2025-03-26T00:00:00+05:30'),
+					title: 'Tribhuvan Sahkari University Bill, 2025 - passed',
+					summary: 'Prisma-backed debate row.',
+					source_url: 'https://eparlib.sansad.in/handle/123456789/2991119?view_type=search',
+					transcript_url: 'https://eparlib.sansad.in/bitstream/123456789/2991119/1/2667.pdf',
+					transcript_pages: 80,
+					transcript_byte_length: 1_258_291,
+					transcript_language: 'Original',
+					members: ['Amit Shah'],
+					lok_sabha_number: '18',
+					session_number: 'IV',
+					debate_type: 'GOVERNMENT BILLS',
+					related_bill_id: 'tribhuvan-sahkari-university-bill-2025',
+					is_demo_seed: false
+				}
+			];
+		},
+		async count() {
+			debateCountCalls += 1;
+			return 1;
+		}
+	},
 	act: {
 		async count({ where }: { where: unknown }) {
 			const serializedWhere = JSON.stringify(where);
@@ -174,13 +205,7 @@ assert.equal(actsDashboard.acts[0]?.id, 'official-act-1');
 assert.equal(actsDashboard.pagination.totalItems, 1);
 assert.equal(actsDashboard.pagination.totalPages, 1);
 
-assert.equal(
-	Object.hasOwn(fakePrisma, 'debate'),
-	false,
-	'debate records are curated fallback data until a Debate model is added to schema.prisma'
-);
-
-const curatedDebatesDashboard = await repository.getDashboardData({
+const prismaDebatesDashboard = await repository.getDashboardData({
 	section: 'debates',
 	house: 'all',
 	date: '2026-07-20',
@@ -194,12 +219,14 @@ const curatedDebatesDashboard = await repository.getDashboardData({
 	pageSize: 10
 });
 
-assert.equal(curatedDebatesDashboard.dataSource.mode, 'prisma');
-assert.ok(curatedDebatesDashboard.debates.length >= 1, 'expected Prisma-mode repository to expose curated debate fallback records');
-assert.ok(
-	curatedDebatesDashboard.debates.some((debate) => debate.title.includes('Tribhuvan Sahkari University Bill')),
-	'expected curated debate fallback query to match Tribhuvan debate'
-);
+assert.equal(prismaDebatesDashboard.dataSource.mode, 'prisma');
+assert.equal(debateFindManyCalls, 1, 'expected Prisma-mode repository to query Debate rows');
+assert.equal(debateCountCalls, 1, 'expected Prisma-mode repository to count Debate rows');
+assert.equal(prismaDebatesDashboard.debates.length, 1);
+assert.equal(prismaDebatesDashboard.debates[0]?.id, 'debate-tribhuvan-bill-passed');
+assert.equal(prismaDebatesDashboard.debates[0]?.summary, 'Prisma-backed debate row.');
+assert.equal(prismaDebatesDashboard.debates[0]?.related_bill_id, 'tribhuvan-sahkari-university-bill-2025');
+assert.equal(prismaDebatesDashboard.pagination.totalItems, 1);
 
 const allDebatesDashboard = await repository.getDashboardData({
 	section: 'debates',

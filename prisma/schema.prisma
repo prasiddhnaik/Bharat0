@@ -89,6 +89,13 @@ enum TimelineEventType {
   BILL_LAPSED
 }
 
+enum DebateTranscriptStatus {
+  METADATA_ONLY
+  EXTRACTED
+  FAILED
+  STALE
+}
+
 model Bill {
   id                 String          @id
   title_en           String
@@ -109,6 +116,7 @@ model Bill {
   acts               Act[]
   ai_analyses        AiBillAnalysis[]
   source_texts       BillSourceText[]
+  debates            Debate[]
   created_at         DateTime        @default(now())
   updated_at         DateTime        @updatedAt
 
@@ -189,6 +197,57 @@ model Question {
 
   @@index([house, date])
   @@index([ministry])
+}
+
+model Debate {
+  id                     String            @id
+  house                  House
+  date                   DateTime
+  title                  String
+  summary                String
+  source_url             String
+  transcript_url         String?
+  transcript_pages       Int?
+  transcript_byte_length Int?
+  transcript_language    String?
+  members                String[]
+  lok_sabha_number       String?
+  session_number         String?
+  debate_type            String?
+  related_bill_id        String?
+  related_bill           Bill?             @relation(fields: [related_bill_id], references: [id], onDelete: SetNull)
+  is_demo_seed           Boolean           @default(true)
+  transcript             DebateTranscript?
+  created_at             DateTime          @default(now())
+  updated_at             DateTime          @updatedAt
+
+  @@index([house, date])
+  @@index([source_url])
+  @@index([related_bill_id])
+  @@index([debate_type])
+}
+
+model DebateTranscript {
+  id                 String                 @id @default(cuid())
+  debate_id          String                 @unique
+  debate             Debate                 @relation(fields: [debate_id], references: [id], onDelete: Cascade)
+  source_url         String
+  resolved_url       String?
+  content_type       String?
+  byte_length        Int?
+  char_count         Int                    @default(0)
+  text_hash          String?
+  text               String                 @default("")
+  status             DebateTranscriptStatus @default(METADATA_ONLY)
+  error              String?
+  extracted_at       DateTime               @default(now())
+  extracted_from_url String?
+  updated_at         DateTime               @updatedAt
+
+  @@index([source_url])
+  @@index([resolved_url])
+  @@index([text_hash])
+  @@index([status])
 }
 
 model Act {

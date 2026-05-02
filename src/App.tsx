@@ -2325,11 +2325,21 @@ function getDebateDetailProfile(debate: Debate): DebateDetailProfile {
 function getDebateTranscriptLabel(debate: Debate) {
 	if (!debate.transcript_url) return 'Not linked';
 	const pageLabel = debate.transcript_pages ? `${debate.transcript_pages} page${debate.transcript_pages === 1 ? '' : 's'}` : 'PDF';
-	return debate.transcript_size ? `${pageLabel} · ${debate.transcript_size}` : pageLabel;
+	return debate.transcript_byte_length ? `${pageLabel} · ${formatByteSize(debate.transcript_byte_length)}` : pageLabel;
+}
+
+function formatByteSize(bytes: number) {
+	if (bytes >= 1_000_000) {
+		return `${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 1 }).format(bytes / 1_000_000)} MB`;
+	}
+	if (bytes >= 1_000) {
+		return `${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 1 }).format(bytes / 1_000)} kB`;
+	}
+	return `${bytes.toLocaleString('en-IN')} B`;
 }
 
 function uniqueDebateMembers(debate: Debate) {
-	return Array.from(new Set(debate.members ?? []));
+	return Array.from(new Set(debate.members));
 }
 
 function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | null; filters: DashboardFilters; onNavigate: NavigateHandler }) {
