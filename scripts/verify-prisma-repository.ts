@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { createLegislativeRepository } from '../src/lib/server/repositories/legislative';
 
+const billCountWhereClauses: unknown[] = [];
+
 const fakePrisma = {
 	bill: {
-		async count() {
+		async count(args?: { where?: unknown }) {
+			billCountWhereClauses.push(args?.where ?? {});
 			return 1;
 		},
 		async groupBy({ by }: { by: string[] }) {
@@ -133,6 +136,17 @@ assert.equal(dashboard.dataSource.mode, 'prisma');
 assert.equal(dashboard.bills[0]?.id, 'official-bill-1');
 assert.equal(dashboard.bills[0]?.isDemoSeed, false);
 assert.equal(dashboard.stats.billsTracked, 1);
+const primeMinisterCountWhereClauses = billCountWhereClauses.filter(
+	(where): where is Record<string, unknown> => Boolean(where) && typeof where === 'object' && Object.hasOwn(where, 'introduced_on')
+);
+assert.ok(primeMinisterCountWhereClauses.length > 0, 'expected Prisma repository to count Prime Minister term ranges');
+assert.ok(
+	primeMinisterCountWhereClauses.every((where) => {
+		const keys = Object.keys(where);
+		return keys.length === 1 && keys[0] === 'introduced_on';
+	}),
+	'expected Prime Minister history counts to ignore active House, stage, source, and search filters'
+);
 
 const detail = await repository.getBillDetail('official-bill-1');
 assert.ok(detail);

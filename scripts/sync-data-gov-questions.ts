@@ -43,9 +43,9 @@ function quote(value: unknown) {
 	return JSON.stringify(value);
 }
 
-function sourceNote(catalog: NonNullable<DiscoveryPayload['results'][number]['metadata']>['dataGovCatalog']) {
-	const apiState = catalog?.catalogApiAvailable ? 'catalog API available' : 'catalog API unavailable';
-	const zipState = catalog?.zipDownloadAvailable ? 'zip download advertised' : 'zip download unavailable';
+function sourceNote(catalog: NonNullable<DiscoveryPayload['results'][number]['metadata']>['dataGovCatalog'] | undefined) {
+	const apiState = catalog?.catalogApiAvailable ? 'API available' : 'API unavailable';
+	const zipState = catalog?.zipDownloadAvailable ? 'ZIP metadata advertised' : 'ZIP unavailable';
 	return `${apiState}; ${zipState}`;
 }
 
@@ -64,11 +64,11 @@ async function main() {
 		const date = dateFromDataGov(catalog?.updatedDate, fallbackDate);
 		return {
 			id: `${result.id}-catalog`,
-			number: `RS-${session}-OGD-CATALOG`,
+			number: `Session ${session}`,
 			house: 'rajya-sabha',
 			date,
-			ministry: catalog?.groupName ?? 'Rajya Sabha - Annexures to Parliamentary Questions',
-			subject: `${result.title?.replace(' | Open Government Data (OGD) Platform India', '') ?? result.name}. OGD metadata: ${sourceNote(catalog)}.`,
+			ministry: 'Rajya Sabha Secretariat',
+			subject: `Rajya Sabha question-answer annexures, Session ${session}`,
 			answer_status: 'answered',
 			source_url: result.finalUrl!,
 			isDemoSeed: false
@@ -84,7 +84,7 @@ async function main() {
 			house: isLokSabha ? 'lok-sabha' : 'rajya-sabha',
 			date,
 			title: result.title?.replace(' | Open Government Data (OGD) Platform India', '') ?? result.name,
-			summary: `Open Government Data Platform India catalog for ${isLokSabha ? 'Lok Sabha' : 'Rajya Sabha'} verbatim debate feeds. OGD metadata: ${sourceNote(catalog)}.`,
+			summary: `Open Government Data Platform India catalog for ${isLokSabha ? 'Lok Sabha' : 'Rajya Sabha'} verbatim debate feeds. Metadata status: ${sourceNote(catalog)}.`,
 			source_url: result.finalUrl!,
 			transcript_language: 'English',
 			debate_type: 'Verbatim debates catalog',
@@ -98,8 +98,8 @@ async function main() {
 			date: question.date,
 			house: question.house,
 			type: 'question_answered',
-			title: question.subject.split('. ')[0],
-			description: question.subject,
+			title: question.subject,
+			description: `Official Open Government Data Platform India catalog for ${question.subject}. ${sourceNote(questionCatalogs.find((result) => `${result.id}-catalog` === question.id)?.metadata?.dataGovCatalog)}.`,
 			source_url: question.source_url,
 			isDemoSeed: false
 		})),

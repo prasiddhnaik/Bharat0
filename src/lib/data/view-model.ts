@@ -63,11 +63,9 @@ export function getDashboardData(filters: DashboardFilters) {
 			areaCountsMap.set(bill.ministry, (areaCountsMap.get(bill.ministry) ?? 0) + 1);
 		}
 
-		if (matchesHouse && matchesStatus && matchesArea && matchesSource && matchesQuery) {
-			for (const term of PRIME_MINISTER_TERMS) {
-				if (billDateMatchesPrimeMinisterTerm(bill.introduced_on, term.id as PrimeMinisterFilter)) {
-					primeMinisterCountsMap.set(term.id, (primeMinisterCountsMap.get(term.id) ?? 0) + 1);
-				}
+		for (const term of PRIME_MINISTER_TERMS) {
+			if (billDateMatchesPrimeMinisterTerm(bill.introduced_on, term.id as PrimeMinisterFilter)) {
+				primeMinisterCountsMap.set(term.id, (primeMinisterCountsMap.get(term.id) ?? 0) + 1);
 			}
 		}
 

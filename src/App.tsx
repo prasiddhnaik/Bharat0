@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { BillDetailData, DashboardData } from '$lib/data/view-model';
+import { getBillDetail, getDashboardData, type BillDetailData, type DashboardData } from '$lib/data/view-model';
 import {
 	formatDate,
 	getStageTone,
@@ -25,6 +25,7 @@ import {
 	type BillStage,
 	type Debate,
 	type House,
+	type Question,
 	type SectionId,
 	type SourceKind,
 	type TimelineEvent
@@ -99,6 +100,13 @@ function hrefForPagedSection(filters: DashboardFilters, section: SectionId, page
 	});
 }
 
+function normalizeFiltersForSection(filters: DashboardFilters): DashboardFilters {
+	if (filters.section === 'bills' && filters.source === 'source-data-gov') {
+		return { ...filters, source: 'all' };
+	}
+	return filters;
+}
+
 function hrefForPrimeMinisterFilter(filters: DashboardFilters, primeMinister: string) {
 	const search = new URLSearchParams({
 		section: filters.section,
@@ -171,7 +179,7 @@ function hrefForDebate(filters: DashboardFilters, debateId: string) {
 }
 
 function hrefForSourceRecords(sourceId: string, language: Language) {
-	const section = sourceId === 'source-india-code' ? 'acts' : 'bills';
+	const section = sourceId === 'source-india-code' ? 'acts' : sourceId === 'source-data-gov' ? 'questions' : 'bills';
 	const search = new URLSearchParams({
 		section,
 		lang: language,
@@ -224,6 +232,15 @@ function yearFromDate(date: string) {
 	return date.slice(0, 4);
 }
 
+function isDataGovQuestionCatalog(question: Question) {
+	return question.id.startsWith('data-gov-') || question.source_url.includes('data.gov.in');
+}
+
+function questionCatalogNote(question: Question) {
+	if (!isDataGovQuestionCatalog(question)) return null;
+	return 'Official data.gov.in catalog coverage for Rajya Sabha question-answer annexures. This confirms a source feed is available; individual question records depend on OGD API or ZIP access for that session.';
+}
+
 function termDurationLabel(startDate: string, endDate?: string) {
 	const start = new Date(`${startDate}T00:00:00.000Z`);
 	const end = endDate ? new Date(`${endDate}T00:00:00.000Z`) : new Date();
@@ -238,87 +255,25 @@ function termDurationLabel(startDate: string, endDate?: string) {
 	return `${years} yr${years === 1 ? '' : 's'}${remainingMonths ? ` ${remainingMonths} mo` : ''}`;
 }
 
-function createEmptyDashboard(filters: DashboardFilters): AppDashboardData {
-	return {
-		seedMeta: {
-			label: 'Loading legislative records',
-			description: 'Fetching records from the local BharatZero database.',
-			updatedAt: filters.date
-		} as unknown as DashboardData['seedMeta'],
-		filters,
-		stats: {
-			billsTracked: 0,
-			filteredBillsTracked: 0,
-			eventsOnDate: 0,
-			committeesTracked: 0,
-			preparedSources: 0
-		},
-		pagination: {
-			page: filters.page,
-			pageSize: filters.pageSize,
-			totalItems: 0,
-			totalPages: 1
-		},
-		stageCounts: [],
-		areaCounts: [],
-		primeMinisterCounts: [],
-		bills: [],
-		allBills: [],
-		billActions: [],
-		timelineEvents: [],
-		timelineGroups: [],
-		timelineDateRail: [],
-		allTimelineEvents: [],
-		sittingDays: [],
-		committees: [],
-		questions: [],
-		debates: [],
-		acts: [],
-		actBills: [],
-		sources: [],
-		ingestion: {
-			adapters: [],
-			outputSummary: {} as DashboardData['ingestion']['outputSummary'],
-			pipelineSteps: []
-		}
-	};
-}
-
 function App() {
 	const [locationSearch, setLocationSearch] = useState(() => window.location.search);
-	const filters = useMemo(() => parseDashboardFilters(new URLSearchParams(locationSearch)), [locationSearch]);
-	const [dashboard, setDashboard] = useState<AppDashboardData>(() => createEmptyDashboard(filters));
+	const filters = useMemo(() => normalizeFiltersForSection(parseDashboardFilters(new URLSearchParams(locationSearch))), [locationSearch]);
+	const dashboard = useMemo<AppDashboardData>(() => getDashboardData(filters), [filters]);
 	const locationParams = new URLSearchParams(locationSearch);
 	const selectedBillId = dashboard.filters.section === 'bills' ? (locationParams.get('bill') ?? dashboard.bills[0]?.id ?? null) : locationParams.get('bill');
 	const selectedActId = dashboard.filters.section === 'acts' ? (locationParams.get('act') ?? dashboard.acts[0]?.id ?? null) : null;
 	const selectedDebateId = dashboard.filters.section === 'debates' ? (locationParams.get('debate') ?? dashboard.debates[0]?.id ?? null) : null;
-	const [selectedBill, setSelectedBill] = useState<AppBillDetailData | null>(null);
-	const [aiAnalysisByKey, setAiAnalysisByKey] = useState<Record<string, BillAnalysis>>({});
-	const [aiAnalysisLoadingKey, setAiAnalysisLoadingKey] = useState<string | null>(null);
-	const [aiAnalysisFailedKeys, setAiAnalysisFailedKeys] = useState<Record<string, true>>({});
-	const dashboardSearch = useMemo(() => {
-		const searchParams = new URLSearchParams(locationSearch);
-		searchParams.delete('bill');
-		searchParams.delete('debate');
-		const serialized = searchParams.toString();
-		return serialized ? `?${serialized}` : '';
-	}, [locationSearch]);
-	const selectedBillForRender = selectedBill?.bill.id === selectedBillId ? selectedBill : null;
+	const selectedBillForRender = useMemo<AppBillDetailData | null>(() => (selectedBillId ? getBillDetail(selectedBillId) : null), [selectedBillId]);
 	const actBillsById = useMemo(() => new Map((dashboard.actBills ?? dashboard.allBills ?? []).map((bill) => [bill.id, bill])), [dashboard.actBills, dashboard.allBills]);
 	const selectedAct = selectedActId ? dashboard.acts.find((act) => act.id === selectedActId) ?? null : null;
 	const selectedActLinkedBill = selectedAct ? actBillsById.get(selectedAct.linked_bill_id) ?? null : null;
 	const selectedDebate = selectedDebateId ? dashboard.debates.find((debate) => debate.id === selectedDebateId) ?? null : null;
-	const selectedAnalysisKey = selectedBillForRender ? `${selectedBillForRender.bill.id}:${dashboard.filters.language}` : null;
 	const localSelectedAnalysis = useMemo(
 		() => (selectedBillForRender ? buildBillAnalysis(selectedBillForRender.bill, selectedBillForRender.actions, dashboard.filters.language) : null),
 		[selectedBillForRender, dashboard.filters.language]
 	);
-	const selectedBillAnalysis = selectedAnalysisKey ? (aiAnalysisByKey[selectedAnalysisKey] ?? localSelectedAnalysis) : null;
-	const selectedAnalysisStatus: AnalysisStatus = selectedAnalysisKey && aiAnalysisByKey[selectedAnalysisKey]?.source === 'groq'
-		? 'ai'
-		: aiAnalysisLoadingKey === selectedAnalysisKey
-			? 'loading'
-			: 'local';
+	const selectedBillAnalysis = localSelectedAnalysis;
+	const selectedAnalysisStatus: AnalysisStatus = 'local';
 
 	const navigateInApp = useCallback((href: string) => {
 		const url = new URL(href, window.location.href);
@@ -336,90 +291,6 @@ function App() {
 		window.addEventListener('popstate', handlePopState);
 		return () => window.removeEventListener('popstate', handlePopState);
 	}, []);
-
-	useEffect(() => {
-		const controller = new AbortController();
-		async function loadFromDatabase() {
-			try {
-				const dashboardResponse = await fetch(`/api/dashboard${dashboardSearch}`, { signal: controller.signal });
-				if (!dashboardResponse.ok) return;
-				const databaseDashboard = (await dashboardResponse.json()) as AppDashboardData;
-				setDashboard(databaseDashboard);
-			} catch (error) {
-				if (!controller.signal.aborted) {
-					console.warn('BharatZero database API unavailable; using bundled fallback data.', error);
-				}
-			}
-		}
-
-		void loadFromDatabase();
-		return () => controller.abort();
-	}, [dashboardSearch]);
-
-	useEffect(() => {
-		const controller = new AbortController();
-
-		async function loadSelectedBill() {
-			if (!selectedBillId) {
-				setSelectedBill(null);
-				return;
-			}
-
-			try {
-				const detailResponse = await fetch(`/api/bills/${encodeURIComponent(selectedBillId)}`, {
-					signal: controller.signal
-				});
-				if (detailResponse.ok) {
-					setSelectedBill((await detailResponse.json()) as AppBillDetailData);
-					return;
-				}
-				setSelectedBill(null);
-			} catch (error) {
-				if (!controller.signal.aborted) {
-					console.warn('BharatZero bill detail API unavailable.', error);
-				}
-			}
-		}
-
-		void loadSelectedBill();
-		return () => controller.abort();
-	}, [selectedBillId]);
-
-	useEffect(() => {
-		if (!selectedBillForRender || !selectedAnalysisKey || aiAnalysisByKey[selectedAnalysisKey] || aiAnalysisFailedKeys[selectedAnalysisKey]) {
-			return;
-		}
-
-		const controller = new AbortController();
-		const billId = selectedBillForRender.bill.id;
-		const analysisKey = selectedAnalysisKey;
-		async function loadAiAnalysis() {
-			setAiAnalysisLoadingKey(analysisKey);
-			try {
-				const response = await fetch(`/api/bills/${encodeURIComponent(billId)}/ai-analysis?lang=${dashboard.filters.language}`, {
-					signal: controller.signal
-				});
-				if (!response.ok) {
-					setAiAnalysisFailedKeys((current) => ({ ...current, [analysisKey]: true }));
-					return;
-				}
-				const payload = (await response.json()) as AiBillAnalysisResponse;
-				setAiAnalysisByKey((current) => ({ ...current, [analysisKey]: payload.analysis }));
-			} catch (error) {
-				if (!controller.signal.aborted) {
-					console.warn('Groq bill analysis unavailable; using local analysis.', error);
-					setAiAnalysisFailedKeys((current) => ({ ...current, [analysisKey]: true }));
-				}
-			} finally {
-				if (!controller.signal.aborted) {
-					setAiAnalysisLoadingKey((current) => (current === analysisKey ? null : current));
-				}
-			}
-		}
-
-		void loadAiAnalysis();
-		return () => controller.abort();
-	}, [selectedBillForRender, selectedAnalysisKey, dashboard.filters.language, aiAnalysisByKey, aiAnalysisFailedKeys]);
 
 	return (
 		<AppShell
@@ -537,20 +408,31 @@ function MainContent({
 
 			{filters.section === 'questions' && (
 				<section className="space-y-3">
-					{dashboard.questions.map((question) => (
-						<article className="bz-panel rounded-lg p-4" key={question.id}>
-							<div className="flex flex-wrap items-center justify-between gap-3">
-								<h2 className="text-base font-semibold text-[var(--bz-text-1)]">{question.subject}</h2>
-								<span className="rounded-md border border-[var(--bz-border)] px-2 py-1 text-[11px] text-[var(--bz-text-2)]">{question.answer_status}</span>
-							</div>
-							<p className="mt-2 text-sm text-[var(--bz-text-2)]">
-								{question.number} · {houseLabelsLocalized[filters.language][question.house]} · {question.ministry} · {formatDate(question.date)}
-							</p>
-							<div className="mt-4">
-								<SourceBadge url={question.source_url} isDemoSeed={question.isDemoSeed} />
-							</div>
-						</article>
-					))}
+					{dashboard.questions.map((question) => {
+						const isDataGovCatalog = isDataGovQuestionCatalog(question);
+						const catalogNote = questionCatalogNote(question);
+						return (
+							<article className={cx('bz-panel rounded-lg p-4', isDataGovCatalog && 'border-[var(--bz-accent)]')} key={question.id}>
+								<div className="flex flex-wrap items-start justify-between gap-3">
+									<div className="min-w-0">
+										<p className="bz-eyebrow text-[0.55rem]">{isDataGovCatalog ? 'Open Government Data' : question.ministry}</p>
+										<h2 className="mt-1 text-base font-semibold leading-tight text-[var(--bz-text-1)]">{question.subject}</h2>
+									</div>
+									{!isDataGovCatalog && <span className="rounded-md border border-[var(--bz-border)] px-2 py-1 text-[11px] font-semibold text-[var(--bz-text-2)]">{question.answer_status}</span>}
+								</div>
+								<div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium text-[var(--bz-text-2)]">
+									<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">{houseLabelsLocalized[filters.language][question.house]}</span>
+									<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">{question.number}</span>
+									<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">Updated {formatDate(question.date)}</span>
+								</div>
+								{catalogNote && <p className="mt-3 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs leading-5 text-[var(--bz-text-2)]">{catalogNote}</p>}
+								{!isDataGovCatalog && <p className="mt-2 text-sm text-[var(--bz-text-2)]">{question.ministry}</p>}
+								<div className="mt-4">
+									<SourceBadge url={question.source_url} isDemoSeed={question.isDemoSeed} />
+								</div>
+							</article>
+						);
+					})}
 				</section>
 			)}
 
@@ -1313,10 +1195,10 @@ function LeftSidebar({
 	const totalCommittees = dashboard.stats.committeesTracked || dashboard.committees.length;
 	const selectedPrimeMinister = getPrimeMinisterTerm(dashboard.filters.primeMinister) ?? PRIME_MINISTER_TERMS[0];
 	const selectedTermRange = `${yearFromDate(selectedPrimeMinister.startDate)}-${selectedPrimeMinister.endDate ? yearFromDate(selectedPrimeMinister.endDate) : 'present'}`;
-	const selectedTermBillCount = dashboard.pagination?.totalItems ?? dashboard.bills.length;
+	const primeMinisterCountById = new Map((dashboard.primeMinisterCounts ?? []).map((item) => [item.id, item.count]));
+	const selectedTermBillCount = primeMinisterCountById.get(selectedPrimeMinister.id) ?? dashboard.pagination?.totalItems ?? dashboard.bills.length;
 	const selectedTermStatusLabel = selectedPrimeMinister.endDate ? 'End' : 'Status';
 	const selectedTermStatusValue = selectedPrimeMinister.endDate ? yearFromDate(selectedPrimeMinister.endDate) : 'Serving';
-	const primeMinisterCountById = new Map((dashboard.primeMinisterCounts ?? []).map((item) => [item.id, item.count]));
 	const selectedPrimeMinisterIndex = PRIME_MINISTER_TERMS.findIndex((term) => term.id === selectedPrimeMinister.id);
 	const newerPrimeMinisterTerm = selectedPrimeMinisterIndex > 0 ? PRIME_MINISTER_TERMS[selectedPrimeMinisterIndex - 1] : null;
 	const olderPrimeMinisterTerm = selectedPrimeMinisterIndex >= 0 && selectedPrimeMinisterIndex < PRIME_MINISTER_TERMS.length - 1 ? PRIME_MINISTER_TERMS[selectedPrimeMinisterIndex + 1] : null;
@@ -1939,13 +1821,6 @@ type BillAnalysis = {
 	source?: 'local' | 'groq';
 	model?: string;
 	generatedAt?: string;
-};
-
-type AiBillAnalysisResponse = {
-	source: 'groq';
-	model: string;
-	generatedAt: string;
-	analysis: BillAnalysis;
 };
 
 function BillAnalysisPanel({

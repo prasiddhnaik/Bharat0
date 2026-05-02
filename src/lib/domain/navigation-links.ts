@@ -18,7 +18,7 @@ export function hrefForSection(
 	if (filters.house !== 'all') search.set('house', filters.house);
 	if (filters.status !== 'all') search.set('status', filters.status);
 	if (filters.area !== 'all') search.set('area', filters.area);
-	if (filters.source !== 'all') search.set('source', filters.source);
+	if (filters.source !== 'all' && !(section === 'bills' && filters.source === 'source-data-gov')) search.set('source', filters.source);
 	if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
 	if (filters.date) search.set('date', filters.date);
 

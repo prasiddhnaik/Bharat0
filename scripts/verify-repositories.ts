@@ -42,6 +42,31 @@ const sourceFilteredDashboard = await repository.getDashboardData({
 assert.ok(sourceFilteredDashboard.pagination.totalItems < sourceFilteredDashboard.stats.billsTracked, 'expected source-filtered pagination to remain separate from total Bill count');
 assert.equal(sourceFilteredDashboard.stats.filteredBillsTracked, sourceFilteredDashboard.pagination.totalItems, 'expected filtered count to match source-filtered pagination total');
 
+const rajyaSabhaModi2Dashboard = await repository.getDashboardData({
+	section: 'bills',
+	house: 'rajya-sabha',
+	date: '2026-07-20',
+	status: 'all',
+	area: 'all',
+	source: 'all',
+	primeMinister: 'modi-2',
+	query: '',
+	language: 'en',
+	page: 1,
+	pageSize: 60
+});
+const allTermCounts = new Map(dashboard.primeMinisterCounts.map((term) => [term.id, term.count]));
+const rajyaSabhaTermCounts = new Map(rajyaSabhaModi2Dashboard.primeMinisterCounts.map((term) => [term.id, term.count]));
+assert.equal(
+	rajyaSabhaTermCounts.get('modi-2'),
+	allTermCounts.get('modi-2'),
+	'expected Prime Minister history counts to show whole-term totals, not active House-filtered totals'
+);
+assert.ok(
+	rajyaSabhaModi2Dashboard.pagination.totalItems < (allTermCounts.get('modi-2') ?? 0),
+	'expected Bills pagination to stay House-filtered while PM history keeps whole-term counts'
+);
+
 const debatesDashboard = await repository.getDashboardData({
 	section: 'debates',
 	house: 'all',

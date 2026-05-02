@@ -407,13 +407,6 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				billStageCountWhere,
 				filters.status === 'all' ? {} : { current_stage: fromDomainBillStage(filters.status) }
 			);
-			const primeMinisterCountBaseWhere = mergeWhereClauses(
-				sourceBillWhere,
-				filters.house === 'all' ? {} : { origin_house: fromDomainHouse(filters.house) },
-				filters.area === 'all' ? {} : { ministry: filters.area },
-				filters.status === 'all' ? {} : { current_stage: fromDomainBillStage(filters.status) },
-				billSearchWhere
-			);
 			const actLinkedBillWhere = mergeWhereClauses(
 				primeMinisterWhere,
 				filters.house === 'all' ? {} : { origin_house: fromDomainHouse(filters.house) },
@@ -496,7 +489,6 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 						};
 						const count = await prisma.bill.count({
 							where: {
-								...primeMinisterCountBaseWhere,
 								introduced_on
 							}
 						});

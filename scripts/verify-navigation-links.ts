@@ -28,4 +28,16 @@ assert.equal(
 	'the all-prime-ministers default should not add pm=all'
 );
 
+assert.equal(
+	hrefForSection({ ...baseFilters, source: 'source-data-gov' }, 'bills'),
+	'/?section=bills&lang=en&page=1&pageSize=60&pm=manmohan-singh-1&date=2026-04-25',
+	'Bills links should drop the data.gov source filter because data.gov records feed Questions, not Bills'
+);
+
+assert.equal(
+	hrefForSection({ ...baseFilters, source: 'source-data-gov' }, 'questions'),
+	'/?section=questions&lang=en&page=1&pageSize=60&source=source-data-gov&pm=manmohan-singh-1&date=2026-04-25',
+	'Questions links should preserve the data.gov source filter'
+);
+
 console.log('Navigation link checks passed.');
