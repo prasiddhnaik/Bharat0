@@ -21,9 +21,11 @@
 		"db:seed": "tsx prisma/seed.ts",
 		"discover:sources": "tsx scripts/discover-source-catalogs.ts",
 		"discover:sources:write": "tsx scripts/discover-source-catalogs.ts --write",
+		"sync:data-gov": "tsx scripts/sync-data-gov-questions.ts",
 		"verify:source-discovery": "tsx scripts/verify-source-discovery.ts",
 		"db:upsert:prs": "tsx scripts/upsert-prs-legislation.ts",
 		"db:upsert:pdl-pre2004": "tsx scripts/upsert-pdl-pre2004-legislation.ts",
+		"db:upsert:data-gov": "tsx scripts/upsert-data-gov-questions.ts",
 		"db:setup": "npm run db:generate && npm run db:push && npm run db:seed && npm run verify:db",
 		"sync:pdl-pre2004": "tsx scripts/sync-pdl-pre2004-legislation.ts",
 		"sync:prs": "tsx scripts/sync-prs-legislation.ts",
@@ -34,6 +36,7 @@
 		"verify:prisma-mappers": "tsx scripts/verify-prisma-mappers.ts",
 		"verify:prisma-repository": "tsx scripts/verify-prisma-repository.ts",
 		"verify:repositories": "tsx scripts/verify-repositories.ts",
+		"verify:data-gov": "tsx scripts/verify-data-gov-ingestion.ts",
 		"verify:timeline": "tsx scripts/verify-timeline-view.ts"
 	},
 	"prisma": {

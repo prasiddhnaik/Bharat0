@@ -26,11 +26,11 @@ const primeMinisterTerms = [
 	{ id: 'indira-gandhi-2', name: 'Indira Gandhi', party: 'INC', termLabel: '2nd premiership', startDate: '1980-01-14', endDate: '1984-10-31', lokSabha: '7th Lok Sabha' },
 	{ id: 'charan-singh', name: 'Charan Singh', party: 'Janata Party (Secular)', termLabel: 'term', startDate: '1979-07-28', endDate: '1980-01-14', lokSabha: '6th Lok Sabha' },
 	{ id: 'morarji-desai', name: 'Morarji Desai', party: 'Janata Party', termLabel: 'term', startDate: '1977-03-24', endDate: '1979-07-28', lokSabha: '6th Lok Sabha' },
-	{ id: 'indira-gandhi-1', name: 'Indira Gandhi', party: 'INC', termLabel: '1st premiership', startDate: '1966-01-24', endDate: '1977-03-24' },
-	{ id: 'nanda-2', name: 'Gulzarilal Nanda', party: 'INC', termLabel: 'acting term', startDate: '1966-01-11', endDate: '1966-01-24' },
-	{ id: 'lal-bahadur-shastri', name: 'Lal Bahadur Shastri', party: 'INC', termLabel: 'term', startDate: '1964-06-09', endDate: '1966-01-11' },
-	{ id: 'nanda-1', name: 'Gulzarilal Nanda', party: 'INC', termLabel: 'acting term', startDate: '1964-05-27', endDate: '1964-06-09' },
-	{ id: 'nehru', name: 'Jawaharlal Nehru', party: 'INC', termLabel: 'term', startDate: '1947-08-15', endDate: '1964-05-27' }
+	{ id: 'indira-gandhi-1', name: 'Indira Gandhi', party: 'INC', termLabel: '1st premiership', startDate: '1966-01-24', endDate: '1977-03-24', lokSabha: '3rd-5th Lok Sabha' },
+	{ id: 'nanda-2', name: 'Gulzarilal Nanda', party: 'INC', termLabel: 'acting term', startDate: '1966-01-11', endDate: '1966-01-24', lokSabha: '3rd Lok Sabha' },
+	{ id: 'lal-bahadur-shastri', name: 'Lal Bahadur Shastri', party: 'INC', termLabel: 'term', startDate: '1964-06-09', endDate: '1966-01-11', lokSabha: '3rd Lok Sabha' },
+	{ id: 'nanda-1', name: 'Gulzarilal Nanda', party: 'INC', termLabel: 'acting term', startDate: '1964-05-27', endDate: '1964-06-09', lokSabha: '3rd Lok Sabha' },
+	{ id: 'nehru', name: 'Jawaharlal Nehru', party: 'INC', termLabel: 'term', startDate: '1947-08-15', endDate: '1964-05-27', lokSabha: 'Constituent Assembly, Provisional Parliament, 1st-3rd Lok Sabha' }
 ] as const;
 
 export const PRIME_MINISTER_TERMS: readonly PrimeMinisterTerm[] = primeMinisterTerms;

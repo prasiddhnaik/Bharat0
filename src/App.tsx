@@ -31,8 +31,15 @@ import {
 } from '$lib/domain/types';
 import { DEFAULT_BILLS_PAGE_SIZE, parseDashboardFilters, type DashboardFilters } from '$lib/domain/dashboard-filters';
 import { getActPartyPositionSourceRefs, getActPartyPositions, getBillPartyPositions, type PartyPositionSide } from '$lib/domain/party-positions';
-import { parliamentHouseSnapshots, type ParliamentHouseSnapshot } from '$lib/domain/parliament-houses';
+import {
+	getLokSabhaPowerSnapshotForPrimeMinister,
+	parliamentHouseSnapshots,
+	toParliamentHouseSnapshot,
+	type ParliamentHouseSnapshot
+} from '$lib/domain/parliament-houses';
+import { getPrimeMinisterProfile } from '$lib/domain/prime-minister-profiles';
 import { getPrimeMinisterTerm, getPrimeMinisterTermLabel, PRIME_MINISTER_TERMS } from '$lib/domain/prime-ministers';
+import { hrefForSection } from '$lib/domain/navigation-links';
 import type { TimelineDateGroup, TimelineDateRailItem } from '$lib/domain/timeline-view';
 
 type DataSourceMeta = {
@@ -77,11 +84,6 @@ function cx(...parts: Array<string | false | null | undefined>) {
 	return parts.filter(Boolean).join(' ');
 }
 
-function hrefFor(section: SectionId, language: Language, params: Record<string, string> = {}) {
-	const search = new URLSearchParams({ section, lang: language, ...params });
-	return `/?${search.toString()}`;
-}
-
 function hrefForBillPage(filters: DashboardFilters, page: number) {
 	return hrefForPagedSection(filters, 'bills', page);
 }
@@ -91,20 +93,10 @@ function hrefForActPage(filters: DashboardFilters, page: number) {
 }
 
 function hrefForPagedSection(filters: DashboardFilters, section: SectionId, page: number) {
-	const search = new URLSearchParams({
-		section,
-		lang: filters.language,
+	return hrefForSection(filters, section, {
 		page: String(page),
 		pageSize: String(filters.pageSize || DEFAULT_BILLS_PAGE_SIZE)
 	});
-	if (filters.query) search.set('q', filters.query);
-	if (filters.house !== 'all') search.set('house', filters.house);
-	if (filters.status !== 'all') search.set('status', filters.status);
-	if (filters.area !== 'all') search.set('area', filters.area);
-	if (filters.source !== 'all') search.set('source', filters.source);
-	if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
-	if (filters.date) search.set('date', filters.date);
-	return `/?${search.toString()}`;
 }
 
 function hrefForPrimeMinisterFilter(filters: DashboardFilters, primeMinister: string) {
@@ -230,6 +222,20 @@ function initialsForName(name: string) {
 
 function yearFromDate(date: string) {
 	return date.slice(0, 4);
+}
+
+function termDurationLabel(startDate: string, endDate?: string) {
+	const start = new Date(`${startDate}T00:00:00.000Z`);
+	const end = endDate ? new Date(`${endDate}T00:00:00.000Z`) : new Date();
+	const months = Math.max(0, (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + end.getUTCMonth() - start.getUTCMonth());
+	if (months < 1) {
+		const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
+		return `${days} day${days === 1 ? '' : 's'}`;
+	}
+	const years = Math.floor(months / 12);
+	const remainingMonths = months % 12;
+	if (years === 0) return `${months} mo`;
+	return `${years} yr${years === 1 ? '' : 's'}${remainingMonths ? ` ${remainingMonths} mo` : ''}`;
 }
 
 function createEmptyDashboard(filters: DashboardFilters): AppDashboardData {
@@ -425,7 +431,7 @@ function App() {
 				dashboard.filters.section === 'acts' ? (
 					<ActDetailPanel act={selectedAct} linkedBill={selectedActLinkedBill} filters={dashboard.filters} onNavigate={navigateInApp} />
 				) : dashboard.filters.section === 'bills' ? (
-					<BillDetailPanel bill={selectedBillForRender?.bill ?? null} actions={selectedBillForRender?.actions ?? []} language={dashboard.filters.language} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
+					<BillDetailPanel bill={selectedBillForRender?.bill ?? null} actions={selectedBillForRender?.actions ?? []} filters={dashboard.filters} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
 				) : dashboard.filters.section === 'debates' ? (
 					<DebateDetailPanel debate={selectedDebate} filters={dashboard.filters} onNavigate={navigateInApp} />
 				) : null
@@ -458,12 +464,14 @@ function MainContent({
 	const { filters } = dashboard;
 	const sessionName = dashboard.sittingDays[0]?.session_name ?? 'Parliament sitting';
 	const sourceStatusLabels = {
-		prepared: 'Ready to connect',
-		'future-adapter': 'Planned source'
+		'using-now': 'Using now',
+		'discovery-ready': 'Discovery wired',
+		planned: 'Planned source'
 	};
 	const sourceStatusHelp = {
-		prepared: 'The app already has a defined record shape for this source.',
-		'future-adapter': 'This official source is identified, but the connector is scheduled for later.'
+		'using-now': 'Current BharatZero records are loaded from this source family.',
+		'discovery-ready': 'Discovery/parsing is wired, but production records are not loaded from this source yet.',
+		planned: 'This official source is identified, but the connector is scheduled for later.'
 	};
 	const sourcePipelineLabels = ['Find official record', 'Clean and match fields', 'Place on bill timeline', 'Show in BharatZero'];
 	const actPositionSources = getActPartyPositionSourceRefs();
@@ -484,7 +492,7 @@ function MainContent({
 							</div>
 							<a
 								className="rounded-md border border-[var(--bz-border)] px-2.5 py-1 text-[11px] font-semibold text-[var(--bz-text-2)] transition hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)] bz-focus"
-								href={hrefFor('bills', filters.language)}
+								href={hrefForSection(filters, 'bills')}
 							>
 								View all
 							</a>
@@ -497,7 +505,7 @@ function MainContent({
 
 			{filters.section === 'timeline' && <TimelineRail events={dashboard.timelineEvents} dateRail={dashboard.timelineDateRail} groups={dashboard.timelineGroups} />}
 
-			{filters.section === 'houses' && <HousesSection />}
+			{filters.section === 'houses' && <HousesSection filters={filters} />}
 
 			{filters.section === 'bills' && (
 				<div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] 2xl:grid-cols-1">
@@ -595,14 +603,17 @@ function MainContent({
 						<p className="bz-eyebrow text-[var(--bz-accent)]">Official sources</p>
 						<h2 className="mt-2 text-xl font-semibold text-[var(--bz-text-1)]">Where BharatZero will link each record</h2>
 						<p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bz-text-2)]">
-							Every bill, action, question, debate, and Act should trace back to an official public source. This screen shows which source families are ready to connect and which are planned next.
-						</p>
-						<div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--bz-text-2)]">
-							<span className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">
-								<b className="text-[var(--bz-text-1)]">Ready to connect</b> means the source shape is defined.
-							</span>
-							<span className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">
-								<b className="text-[var(--bz-text-1)]">Planned source</b> means the official source is identified for a future connector.
+								Every bill, action, question, debate, and Act should trace back to an official public source. This screen shows which source families feed current records, which are discovery-only, and which are planned next.
+							</p>
+							<div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--bz-text-2)]">
+								<span className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">
+									<b className="text-[var(--bz-text-1)]">Using now</b> means current records are loaded from that source family.
+								</span>
+								<span className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">
+									<b className="text-[var(--bz-text-1)]">Discovery wired</b> means metadata checks exist but rows are not loaded yet.
+								</span>
+								<span className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">
+									<b className="text-[var(--bz-text-1)]">Planned source</b> means the official source is identified for a future connector.
 							</span>
 						</div>
 						<div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -663,25 +674,40 @@ function MainContent({
 	);
 }
 
-function HousesSection() {
+function HousesSection({ filters }: { filters: DashboardFilters }) {
 	const parliamentSummary = [
 		['Lok Sabha', 'Directly elected chamber', 'Government confidence, Money Bills, and the Budget start here.'],
 		['Rajya Sabha', 'Council of States', 'Reviews ordinary Bills and represents states and Union territories.'],
 		['Control', 'Seat strength matters', 'The side with Lok Sabha confidence forms and sustains government.']
 	];
+	const selectedPrimeMinister = getPrimeMinisterTerm(filters.primeMinister) ?? PRIME_MINISTER_TERMS[0];
+	const powerSnapshot = getLokSabhaPowerSnapshotForPrimeMinister(selectedPrimeMinister.id);
+	const lokSabhaSnapshot = powerSnapshot ? toParliamentHouseSnapshot(powerSnapshot) : parliamentHouseSnapshots[0];
+	const rajyaSabhaSnapshot =
+		selectedPrimeMinister.id === 'modi-3' ? parliamentHouseSnapshots.find((house) => house.id === 'rajya-sabha') : null;
+	const selectedTermRange = `${yearFromDate(selectedPrimeMinister.startDate)}-${selectedPrimeMinister.endDate ? yearFromDate(selectedPrimeMinister.endDate) : 'present'}`;
+	const selectedTermEndLabel = selectedPrimeMinister.endDate ? formatDate(selectedPrimeMinister.endDate) : 'Serving';
+	const selectedTermDuration = termDurationLabel(selectedPrimeMinister.startDate, selectedPrimeMinister.endDate);
 
 	return (
 		<section className="space-y-3">
-			<div className="bz-panel rounded-lg p-5">
-				<p className="bz-eyebrow text-[var(--bz-accent)]">Union Parliament</p>
+			<div className="bz-panel rounded-lg p-4 sm:p-5">
+				<p className="bz-eyebrow text-[var(--bz-accent)]">Selected term power</p>
 				<div className="mt-2 grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
 					<div className="min-w-0">
-						<h2 className="text-xl font-semibold text-[var(--bz-text-1)]">Seats, control, and House roles</h2>
+						<h2 className="text-lg font-semibold leading-tight text-[var(--bz-text-1)] sm:text-xl">{selectedPrimeMinister.name} · {selectedPrimeMinister.lokSabha ?? 'Union Parliament'}</h2>
 						<p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bz-text-2)]">
-							India’s Parliament has two Houses. Lok Sabha is the directly elected House that decides who governs. Rajya Sabha is the continuing Council of States that reviews legislation and gives states a voice in Parliament.
+							{powerSnapshot?.powerSummary ?? 'The selected Prime Minister term does not have a mapped Lok Sabha power snapshot yet.'}
 						</p>
 						<div className="mt-4 grid gap-2 md:grid-cols-3">
-							{parliamentSummary.map(([title, label, body]) => (
+							{(powerSnapshot
+								? [
+										['Largest party', `${powerSnapshot.largestParty} · ${powerSnapshot.largestPartySeats}`, `${powerSnapshot.runnerUpParty} was next with ${powerSnapshot.runnerUpSeats} seats.`],
+										['Government side', powerSnapshot.governingSide, powerSnapshot.governingSeats ? `${powerSnapshot.governingSeats} seats against a ${powerSnapshot.majorityMark} majority mark.` : `Majority mark ${powerSnapshot.majorityMark}.`],
+										['Term window', powerSnapshot.period, `${powerSnapshot.lokSabha} from the ${powerSnapshot.electionYear} election.`]
+									]
+								: parliamentSummary
+							).map(([title, label, body]) => (
 								<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3" key={title}>
 									<p className="text-[10px] font-bold uppercase tracking-[0.07em] text-[var(--bz-text-3)]">{title}</p>
 									<p className="mt-2 text-sm font-semibold text-[var(--bz-text-1)]">{label}</p>
@@ -690,25 +716,61 @@ function HousesSection() {
 							))}
 						</div>
 					</div>
-					<div className="grid content-end gap-2 text-center sm:grid-cols-2 xl:grid-cols-1">
-						<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2">
-							<p className="bz-eyebrow text-[0.55rem]">Lok Sabha</p>
-							<p className="bz-mono mt-1 text-xl font-semibold text-[var(--bz-text-1)]">543</p>
-							<p className="mt-1 text-[10px] text-[var(--bz-text-3)]">elected seats</p>
-						</div>
-						<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2">
-							<p className="bz-eyebrow text-[0.55rem]">Rajya Sabha</p>
-							<p className="bz-mono mt-1 text-xl font-semibold text-[var(--bz-text-1)]">245</p>
-							<p className="mt-1 text-[10px] text-[var(--bz-text-3)]">current seats</p>
+					<div className="grid content-stretch gap-2">
+						<div className="relative overflow-hidden rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-4 text-left">
+							<div className="absolute inset-x-0 top-0 flex h-1">
+								<span className="flex-1 bg-[var(--bz-saffron)]" />
+								<span className="flex-1 bg-white dark:bg-[var(--bz-surface)]" />
+								<span className="flex-1 bg-[var(--bz-green)]" />
+							</div>
+							<div className="flex items-start justify-between gap-3">
+								<div className="min-w-0">
+									<p className="bz-eyebrow text-[0.55rem]">Term snapshot</p>
+									<h3 className="mt-1 text-lg font-semibold leading-tight text-[var(--bz-text-1)]">{selectedPrimeMinister.termLabel}</h3>
+									<p className="mt-1 text-xs text-[var(--bz-text-3)]">{selectedTermRange}</p>
+								</div>
+								<span className="shrink-0 rounded-md bg-[var(--bz-accent-2)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--bz-accent)]">{selectedPrimeMinister.party}</span>
+							</div>
+							<div className="mt-4 grid grid-cols-3 gap-2">
+								<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] px-2 py-2">
+									<p className="bz-eyebrow text-[0.48rem]">House</p>
+									<p className="mt-1 truncate text-[11px] font-semibold text-[var(--bz-text-1)]">{powerSnapshot?.lokSabha ?? 'Lok Sabha'}</p>
+								</div>
+								<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] px-2 py-2">
+									<p className="bz-eyebrow text-[0.48rem]">Tenure</p>
+									<p className="mt-1 truncate text-[11px] font-semibold text-[var(--bz-text-1)]">{selectedTermDuration}</p>
+								</div>
+								<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] px-2 py-2">
+									<p className="bz-eyebrow text-[0.48rem]">Majority</p>
+									<p className="bz-mono mt-1 text-[11px] font-semibold text-[var(--bz-text-1)]">{powerSnapshot?.majorityMark ?? 272}</p>
+								</div>
+							</div>
+							<div className="mt-4 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3">
+								<div className="flex items-center gap-2">
+									<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--bz-accent)]" />
+									<span className="h-px flex-1 bg-[var(--bz-border)]" />
+									<span className={cx('h-2.5 w-2.5 shrink-0 rounded-full', selectedPrimeMinister.endDate ? 'bg-[var(--bz-text-3)]' : 'bg-emerald-500')} />
+								</div>
+								<div className="mt-2 grid grid-cols-2 gap-3 text-[10.5px]">
+									<div>
+										<p className="font-semibold text-[var(--bz-text-1)]">Started</p>
+										<p className="mt-0.5 text-[var(--bz-text-3)]">{formatDate(selectedPrimeMinister.startDate)}</p>
+									</div>
+									<div className="text-right">
+										<p className="font-semibold text-[var(--bz-text-1)]">{selectedPrimeMinister.endDate ? 'Ended' : 'Status'}</p>
+										<p className="mt-0.5 text-[var(--bz-text-3)]">{selectedTermEndLabel}</p>
+									</div>
+								</div>
+							</div>
+							<p className="mt-3 text-[10.5px] leading-4 text-[var(--bz-text-3)]">{powerSnapshot?.asOf ?? 'Current snapshot'}.</p>
 						</div>
 					</div>
 				</div>
 			</div>
 
 			<div className="grid gap-3">
-				{parliamentHouseSnapshots.map((house) => (
-					<HouseSnapshotCard house={house} key={house.id} />
-				))}
+				<HouseSnapshotCard house={lokSabhaSnapshot} />
+				{rajyaSabhaSnapshot && <HouseSnapshotCard house={rajyaSabhaSnapshot} />}
 			</div>
 		</section>
 	);
@@ -723,7 +785,7 @@ function HouseSnapshotCard({ house }: { house: ParliamentHouseSnapshot }) {
 	const seatClipId = `${house.id}-seat-clip`;
 
 	return (
-		<article className="bz-panel rounded-lg p-4">
+		<article className="bz-panel rounded-lg p-3 sm:p-4">
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<p className="bz-eyebrow">{house.role}</p>
@@ -735,7 +797,7 @@ function HouseSnapshotCard({ house }: { house: ParliamentHouseSnapshot }) {
 			<p className="mt-3 text-sm leading-6 text-[var(--bz-text-2)]">{house.holderSummary}</p>
 			<p className="mt-2 text-xs leading-5 text-[var(--bz-text-3)]">{house.termSummary}</p>
 
-			<div className="mt-4 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+			<div className="mt-4 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-2 sm:p-3">
 				<div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
 					<div className="min-w-0">
 						<svg className="block h-auto w-full overflow-hidden" viewBox="0 0 560 302" role="img" aria-label={`${house.name} clickable seating arrangement`}>
@@ -946,14 +1008,14 @@ function AppShell({
 
 	return (
 		<div className={cx(darkMode && 'dark', 'min-h-dvh overflow-hidden bg-[var(--bz-bg)] text-[var(--bz-text-1)]')}>
-			<header className="sticky top-0 z-50 flex min-h-12 items-center gap-2 border-b border-[var(--bz-border)] bg-[var(--bz-surface)] px-3">
-				<a className="shrink-0 text-sm font-bold tracking-tight text-[var(--bz-accent)] bz-focus" href={hrefFor('overview', language)}>
+			<header className="sticky top-0 z-50 flex min-h-12 items-center gap-1 border-b border-[var(--bz-border)] bg-[var(--bz-surface)] px-2 sm:gap-2 sm:px-3">
+				<a className="shrink-0 text-[13px] font-bold tracking-tight text-[var(--bz-accent)] bz-focus sm:text-sm" href={hrefForSection(dashboard.filters, 'overview')}>
 					BharatZero
 				</a>
 				<div className="hidden h-5 w-px bg-[var(--bz-border)] sm:block" />
-				<SectionTabs active={section} language={language} />
+				<SectionTabs active={section} filters={dashboard.filters} language={language} />
 				<div className="mx-auto hidden min-w-[14rem] max-w-[24rem] flex-1 md:block">
-					<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} />
+					<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} primeMinister={dashboard.filters.primeMinister} />
 				</div>
 				<div className="ml-auto flex shrink-0 items-center gap-1">
 					<div className="hidden items-center gap-2 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1 lg:flex">
@@ -970,7 +1032,7 @@ function AppShell({
 					<div className="hidden h-5 w-px bg-[var(--bz-border)] sm:block" />
 					<button
 						className={cx(
-							'rounded-md border px-2.5 py-1 text-[11px] font-medium transition bz-focus',
+							'hidden rounded-md border px-2.5 py-1 text-[11px] font-medium transition bz-focus sm:inline-flex',
 							signedInDemo
 								? 'border-[var(--bz-accent)] bg-[var(--bz-accent-2)] text-[var(--bz-accent)]'
 								: 'border-[var(--bz-border)] bg-transparent text-[var(--bz-text-2)] hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)]'
@@ -981,7 +1043,7 @@ function AppShell({
 						{signedInDemo ? 'Signed In' : 'Sign In'}
 					</button>
 					<button
-						className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--bz-text-2)] transition hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)] bz-focus"
+						className="hidden rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--bz-text-2)] transition hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)] bz-focus sm:inline-flex"
 						type="button"
 						onClick={() => setDarkMode((value) => !value)}
 					>
@@ -989,7 +1051,7 @@ function AppShell({
 					</button>
 					<button
 						className={cx(
-							'rounded-md border px-2.5 py-1 text-[13px] font-medium leading-none transition bz-focus',
+							'hidden rounded-md border px-2.5 py-1 text-[13px] font-medium leading-none transition bz-focus lg:inline-flex',
 							sidebarCollapsed
 								? 'border-[var(--bz-accent)] bg-[var(--bz-accent-2)] text-[var(--bz-accent)]'
 								: 'border-[var(--bz-border)] bg-transparent text-[var(--bz-text-2)] hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)]'
@@ -1020,10 +1082,11 @@ function AppShell({
 			>
 				{!sidebarCollapsed && <LeftSidebar cabinetOpen={cabinetOpen} setCabinetOpen={setCabinetOpen} dashboard={dashboard} language={language} />}
 				<main className="min-h-0 min-w-0 overflow-y-auto">
-					<div className="mx-auto max-w-[1120px] space-y-3 p-3 lg:p-4">
+					<div className="mx-auto max-w-[1120px] space-y-3 p-2 sm:p-3 lg:p-4">
 						<div className="md:hidden">
-							<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} />
+							<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} primeMinister={dashboard.filters.primeMinister} />
 						</div>
+						<MobilePrimeMinisterPanel dashboard={dashboard} />
 						{children}
 					</div>
 				</main>
@@ -1033,33 +1096,33 @@ function AppShell({
 	);
 }
 
-function SectionTabs({ active, language }: { active: SectionId; language: Language }) {
+function SectionTabs({ active, filters, language }: { active: SectionId; filters: DashboardFilters; language: Language }) {
 	const fixedSections: SectionId[] = ['houses', 'timeline'];
 	const primarySections: SectionId[] = ['bills', 'committees'];
 	const secondarySections = SECTION_IDS.filter((section) => section !== 'overview' && !fixedSections.includes(section) && !primarySections.includes(section));
 	const linkClass = (section: SectionId) =>
 		cx(
-			'relative z-20 grid h-10 min-w-[5.75rem] shrink-0 select-none place-items-center whitespace-nowrap rounded-md border border-transparent px-3 text-xs font-medium leading-none transition bz-focus',
+			'relative z-20 grid h-9 min-w-[4.7rem] shrink-0 select-none place-items-center whitespace-nowrap rounded-md border border-transparent px-2 text-[11px] font-medium leading-none transition bz-focus sm:h-10 sm:min-w-[5.75rem] sm:px-3 sm:text-xs',
 			active === section
 				? 'bg-[var(--bz-accent-2)] text-[var(--bz-accent)]'
 				: 'text-[var(--bz-text-2)] hover:bg-[var(--bz-surface-2)] hover:text-[var(--bz-text-1)]'
 		);
 
 	return (
-		<nav className="relative z-20 flex shrink-0 items-center gap-1 overflow-visible" aria-label="Sections">
+		<nav className="relative z-20 -mx-1 flex min-w-0 flex-1 shrink items-center gap-1 overflow-x-auto overflow-y-hidden px-1 [scrollbar-width:none] md:mx-0 md:flex-none md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden" aria-label="Sections">
 			<a
 				className={cx(
-					'group relative z-20 flex shrink-0 select-none items-center justify-center whitespace-nowrap text-xs font-medium leading-none transition bz-focus',
+					'group relative z-20 flex shrink-0 select-none items-center justify-center whitespace-nowrap text-[11px] font-medium leading-none transition bz-focus sm:text-xs',
 					active === 'overview' ? 'text-[var(--bz-accent)]' : 'text-[var(--bz-text-2)] hover:text-[var(--bz-text-1)]'
 				)}
 				data-testid="section-overview-button"
-				href={hrefFor('overview', language)}
+				href={hrefForSection(filters, 'overview')}
 				aria-current={active === 'overview' ? 'page' : undefined}
 				style={{ minHeight: '3rem', alignSelf: 'stretch', pointerEvents: 'auto' }}
 			>
 				<span
 					className={cx(
-						'grid h-10 min-w-[5.75rem] place-items-center rounded-md border border-transparent px-3 transition',
+						'grid h-9 min-w-[4.7rem] place-items-center rounded-md border border-transparent px-2 transition sm:h-10 sm:min-w-[5.75rem] sm:px-3',
 						active === 'overview' ? 'bg-[var(--bz-accent-2)]' : 'group-hover:bg-[var(--bz-surface-2)]'
 					)}
 				>
@@ -1067,16 +1130,21 @@ function SectionTabs({ active, language }: { active: SectionId; language: Langua
 				</span>
 			</a>
 			{fixedSections.map((section) => (
-				<a className={linkClass(section)} data-testid={`section-${section}-button`} href={hrefFor(section, language)} aria-current={active === section ? 'page' : undefined} key={section}>
+				<a className={linkClass(section)} data-testid={`section-${section}-button`} href={hrefForSection(filters, section)} aria-current={active === section ? 'page' : undefined} key={section}>
 					{getSectionLabel(section, language)}
 				</a>
 			))}
 			{primarySections.map((section) => (
-				<a className={linkClass(section)} data-testid={`section-${section}-button`} href={hrefFor(section, language)} aria-current={active === section ? 'page' : undefined} key={section}>
+				<a className={linkClass(section)} data-testid={`section-${section}-button`} href={hrefForSection(filters, section)} aria-current={active === section ? 'page' : undefined} key={section}>
 					{getSectionLabel(section, language)}
 				</a>
 			))}
-			<details className="relative">
+			{secondarySections.map((section) => (
+				<a className={cx(linkClass(section), 'md:hidden')} href={hrefForSection(filters, section)} aria-current={active === section ? 'page' : undefined} key={section}>
+					{getSectionLabel(section, language)}
+				</a>
+			))}
+			<details className="relative hidden md:block">
 				<summary
 					className={cx(
 						'list-none rounded-md px-2.5 py-1.5 text-xs font-medium transition marker:hidden bz-focus',
@@ -1089,7 +1157,7 @@ function SectionTabs({ active, language }: { active: SectionId; language: Langua
 				</summary>
 				<div className="absolute left-0 top-full z-50 mt-1 grid min-w-32 gap-1 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] p-1 shadow-lg">
 					{secondarySections.map((section) => (
-						<a className={linkClass(section)} href={hrefFor(section, language)} aria-current={active === section ? 'page' : undefined} key={section}>
+						<a className={linkClass(section)} href={hrefForSection(filters, section)} aria-current={active === section ? 'page' : undefined} key={section}>
 							{getSectionLabel(section, language)}
 						</a>
 					))}
@@ -1107,12 +1175,25 @@ function LoadTimeNotice() {
 	);
 }
 
-function SearchCommand({ query, language, section, source = 'all' }: { query: string; language: Language; section: SectionId; source?: string }) {
+function SearchCommand({
+	query,
+	language,
+	section,
+	source = 'all',
+	primeMinister = 'all'
+}: {
+	query: string;
+	language: Language;
+	section: SectionId;
+	source?: string;
+	primeMinister?: string;
+}) {
 	return (
 		<form action="/" method="GET" className="relative">
 			<input type="hidden" name="section" value={section} />
 			<input type="hidden" name="lang" value={language} />
 			{source !== 'all' && <input type="hidden" name="source" value={source} />}
+			{primeMinister !== 'all' && <input type="hidden" name="pm" value={primeMinister} />}
 			<span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--bz-accent)]">⌕</span>
 			<input
 				name="q"
@@ -1121,6 +1202,97 @@ function SearchCommand({ query, language, section, source = 'all' }: { query: st
 				className="h-9 w-full rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] pl-8 pr-3 text-xs text-[var(--bz-text-1)] outline-none placeholder:text-[var(--bz-text-3)] focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10"
 			/>
 		</form>
+	);
+}
+
+function MobilePrimeMinisterPanel({ dashboard }: { dashboard: AppDashboardData }) {
+	const selectedPrimeMinister = getPrimeMinisterTerm(dashboard.filters.primeMinister) ?? PRIME_MINISTER_TERMS[0];
+	const selectedPrimeMinisterIndex = PRIME_MINISTER_TERMS.findIndex((term) => term.id === selectedPrimeMinister.id);
+	const newerPrimeMinisterTerm = selectedPrimeMinisterIndex > 0 ? PRIME_MINISTER_TERMS[selectedPrimeMinisterIndex - 1] : null;
+	const olderPrimeMinisterTerm = selectedPrimeMinisterIndex >= 0 && selectedPrimeMinisterIndex < PRIME_MINISTER_TERMS.length - 1 ? PRIME_MINISTER_TERMS[selectedPrimeMinisterIndex + 1] : null;
+	const primeMinisterCountById = new Map((dashboard.primeMinisterCounts ?? []).map((item) => [item.id, item.count]));
+	const selectedTermBillCount = primeMinisterCountById.get(selectedPrimeMinister.id) ?? dashboard.bills.length;
+	const selectedTermRange = `${yearFromDate(selectedPrimeMinister.startDate)}-${selectedPrimeMinister.endDate ? yearFromDate(selectedPrimeMinister.endDate) : 'present'}`;
+
+	return (
+		<section className="bz-panel rounded-lg p-3 lg:hidden" aria-label="Prime Minister term context">
+			<div className="flex items-start justify-between gap-3">
+				<div className="min-w-0">
+					<p className="bz-eyebrow text-[0.55rem]">{selectedPrimeMinister.lokSabha ?? 'Union Parliament'}</p>
+					<h1 className="mt-1 truncate text-sm font-bold leading-tight text-[var(--bz-text-1)]">{selectedPrimeMinister.name}</h1>
+					<p className="mt-1 truncate text-[11px] text-[var(--bz-text-3)]">
+						{selectedPrimeMinister.party} · {selectedPrimeMinister.termLabel} · {selectedTermRange}
+					</p>
+				</div>
+				<div className="shrink-0 rounded-md bg-[var(--bz-accent-2)] px-2 py-1 text-right">
+					<p className="bz-eyebrow text-[0.5rem]">Bills</p>
+					<p className="bz-mono text-sm font-bold text-[var(--bz-accent)]">{selectedTermBillCount.toLocaleString('en-IN')}</p>
+				</div>
+			</div>
+			<div className="mt-3 grid grid-cols-2 gap-2">
+				<a
+					className={cx(
+						'rounded-md border px-2 py-2 text-center text-[11px] font-semibold transition bz-focus',
+						newerPrimeMinisterTerm
+							? 'border-[var(--bz-border)] bg-[var(--bz-surface-2)] text-[var(--bz-text-2)] hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)]'
+							: 'pointer-events-none border-[var(--bz-border)] text-[var(--bz-text-3)] opacity-50'
+					)}
+					href={newerPrimeMinisterTerm ? hrefForPrimeMinisterFilter(dashboard.filters, newerPrimeMinisterTerm.id) : '#'}
+					aria-disabled={!newerPrimeMinisterTerm}
+				>
+					Newer term
+				</a>
+				<a
+					className={cx(
+						'rounded-md border px-2 py-2 text-center text-[11px] font-semibold transition bz-focus',
+						olderPrimeMinisterTerm
+							? 'border-[var(--bz-border)] bg-[var(--bz-surface-2)] text-[var(--bz-text-2)] hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)]'
+							: 'pointer-events-none border-[var(--bz-border)] text-[var(--bz-text-3)] opacity-50'
+					)}
+					href={olderPrimeMinisterTerm ? hrefForPrimeMinisterFilter(dashboard.filters, olderPrimeMinisterTerm.id) : '#'}
+					aria-disabled={!olderPrimeMinisterTerm}
+				>
+					Older term
+				</a>
+			</div>
+			<div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Prime minister terms">
+				<a
+					className={cx(
+						'grid min-w-[6.5rem] content-center rounded-md border px-2 py-2 text-[10.5px] font-semibold transition bz-focus',
+						dashboard.filters.primeMinister === 'all'
+							? 'border-[var(--bz-accent)] bg-[var(--bz-accent-2)] text-[var(--bz-accent)]'
+							: 'border-[var(--bz-border)] bg-[var(--bz-surface-2)] text-[var(--bz-text-2)] hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)]'
+					)}
+					href={hrefForPrimeMinisterFilter(dashboard.filters, 'all')}
+					aria-current={dashboard.filters.primeMinister === 'all' ? 'page' : undefined}
+				>
+					All terms
+				</a>
+				{PRIME_MINISTER_TERMS.map((term) => {
+					const count = primeMinisterCountById.get(term.id) ?? 0;
+					const isSelected = selectedPrimeMinister.id === term.id;
+					return (
+						<a
+							className={cx(
+								'grid min-w-[8.5rem] grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-md border px-2 py-2 text-[10.5px] transition bz-focus',
+								isSelected
+									? 'border-[var(--bz-accent)] bg-[var(--bz-accent-2)] text-[var(--bz-accent)]'
+									: 'border-[var(--bz-border)] bg-[var(--bz-surface-2)] text-[var(--bz-text-2)] hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)]'
+							)}
+							href={hrefForPrimeMinisterFilter(dashboard.filters, term.id)}
+							key={term.id}
+							aria-current={isSelected ? 'page' : undefined}
+						>
+							<span className="min-w-0">
+								<span className="block truncate font-semibold">{term.name}</span>
+								<span className="mt-0.5 block truncate text-[9.5px] text-[var(--bz-text-3)]">{yearFromDate(term.startDate)} · {term.lokSabha ?? 'Union Parliament'}</span>
+							</span>
+							<span className="bz-mono pt-0.5 font-semibold">{count.toLocaleString('en-IN')}</span>
+						</a>
+					);
+				})}
+			</div>
+		</section>
 	);
 }
 
@@ -1148,14 +1320,7 @@ function LeftSidebar({
 	const selectedPrimeMinisterIndex = PRIME_MINISTER_TERMS.findIndex((term) => term.id === selectedPrimeMinister.id);
 	const newerPrimeMinisterTerm = selectedPrimeMinisterIndex > 0 ? PRIME_MINISTER_TERMS[selectedPrimeMinisterIndex - 1] : null;
 	const olderPrimeMinisterTerm = selectedPrimeMinisterIndex >= 0 && selectedPrimeMinisterIndex < PRIME_MINISTER_TERMS.length - 1 ? PRIME_MINISTER_TERMS[selectedPrimeMinisterIndex + 1] : null;
-	const cabinetPeople =
-		selectedPrimeMinister.id === 'modi-3'
-			? [
-					['Nirmala Sitharaman', 'Finance'],
-					['Arjun Ram Meghwal', 'Law and Justice'],
-					['Amit Shah', 'Home Affairs']
-				]
-			: [];
+	const selectedPrimeMinisterProfile = getPrimeMinisterProfile(selectedPrimeMinister.id);
 
 	useEffect(() => {
 		sidebarRef.current?.scrollTo({ top: 0 });
@@ -1239,13 +1404,13 @@ function LeftSidebar({
 							Older term
 						</a>
 					</div>
-					<div className="mt-2 max-h-44 space-y-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable] [scrollbar-width:thin]" aria-label="Prime minister terms">
+					<div className="mt-2 max-h-52 space-y-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable] [scrollbar-width:thin]" aria-label="Prime minister terms">
 						{PRIME_MINISTER_TERMS.map((term) => {
 							const count = primeMinisterCountById.get(term.id) ?? 0;
 							return (
 								<a
 									className={cx(
-										'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded px-2 py-1.5 text-[10.5px] transition bz-focus',
+										'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded px-2 py-1.5 text-[10.5px] transition bz-focus',
 										selectedPrimeMinister.id === term.id
 											? 'bg-[var(--bz-accent-2)] text-[var(--bz-accent)]'
 											: 'bg-[var(--bz-surface)] text-[var(--bz-text-2)] hover:text-[var(--bz-accent)]'
@@ -1255,9 +1420,10 @@ function LeftSidebar({
 									aria-current={selectedPrimeMinister.id === term.id ? 'page' : undefined}
 								>
 									<span className="min-w-0 truncate">
-										{term.name} · {yearFromDate(term.startDate)}
+										<span className="block truncate">{term.name} · {yearFromDate(term.startDate)}</span>
+										<span className="mt-0.5 block truncate text-[9.5px] text-[var(--bz-text-3)]">{term.lokSabha ?? 'Union Parliament'}</span>
 									</span>
-									<span className="bz-mono font-semibold">{count.toLocaleString('en-IN')}</span>
+									<span className="bz-mono pt-0.5 font-semibold">{count.toLocaleString('en-IN')}</span>
 								</a>
 							);
 						})}
@@ -1269,19 +1435,26 @@ function LeftSidebar({
 					aria-expanded={cabinetOpen}
 					onClick={() => setCabinetOpen((value) => !value)}
 				>
-					{cabinetOpen ? 'Hide Cabinet' : 'View Cabinet'}
+					{cabinetOpen ? 'Hide Profile' : 'View Profile'}
 				</button>
 				{cabinetOpen && (
 					<div className="mt-2 space-y-1 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-2">
-						{cabinetPeople.length ? (
-							cabinetPeople.map(([name, portfolio]) => (
-								<div className="flex items-center justify-between gap-2 text-[11px]" key={name}>
-									<span className="font-semibold text-[var(--bz-text-1)]">{name}</span>
-									<span className="text-right text-[var(--bz-text-3)]">{portfolio}</span>
+						{selectedPrimeMinisterProfile ? (
+							<>
+								<p className="text-[11px] leading-5 text-[var(--bz-text-2)]">{selectedPrimeMinisterProfile.summary}</p>
+								<div className="mt-2 space-y-1.5">
+									{selectedPrimeMinisterProfile.highlights.map((highlight) => (
+										<p className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface)] px-2 py-1.5 text-[10.5px] leading-4 text-[var(--bz-text-2)]" key={highlight}>
+											{highlight}
+										</p>
+									))}
 								</div>
-							))
+								<div className="mt-2">
+									<SourceBadge url={selectedPrimeMinisterProfile.sourceUrl} label={selectedPrimeMinisterProfile.sourceLabel} />
+								</div>
+							</>
 						) : (
-							<p className="text-[10.5px] leading-4 text-[var(--bz-text-2)]">Cabinet roster is not loaded for this historical term yet.</p>
+							<p className="text-[10.5px] leading-4 text-[var(--bz-text-2)]">Profile data is not loaded for this term yet.</p>
 						)}
 					</div>
 				)}
@@ -1298,20 +1471,20 @@ function LeftSidebar({
 					))}
 				</div>
 			</div>
-			<div className="border-t border-[var(--bz-border)] p-3">
-				<div className="flex items-start justify-between gap-2">
-					<div>
-						<p className="bz-eyebrow">Current Parliament</p>
-						<h2 className="mt-1 text-sm font-semibold text-[var(--bz-text-1)]">18th Lok Sabha</h2>
-					</div>
-					<span className="rounded-md bg-[var(--bz-accent-2)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--bz-accent)]">2024-29</span>
+				<div className="border-t border-[var(--bz-border)] p-3">
+					<div className="flex items-start justify-between gap-2">
+						<div>
+							<p className="bz-eyebrow">Selected House</p>
+							<h2 className="mt-1 text-sm font-semibold text-[var(--bz-text-1)]">{selectedPrimeMinister.lokSabha ?? 'Union Parliament'}</h2>
+						</div>
+					<span className="rounded-md bg-[var(--bz-accent-2)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--bz-accent)]">{selectedTermRange}</span>
 				</div>
-				<p className="mt-2 text-[11px] leading-5 text-[var(--bz-text-2)]">Union Parliament is tracked by House, session day, bill stage, and official source family.</p>
+				<p className="mt-2 text-[11px] leading-5 text-[var(--bz-text-2)]">House context follows the Prime Minister term selected above, while source families and bill-stage records stay filterable across sections.</p>
 				<nav className="mt-3 grid grid-cols-3 gap-1 rounded-md bg-[var(--bz-surface-2)] p-1" aria-label="Parliament shortcuts">
 					{[
-						['Overview', hrefFor('overview', language)],
-						['Bills', hrefFor('bills', language)],
-						['Houses', hrefFor('houses', language)]
+						['Overview', hrefForSection(dashboard.filters, 'overview')],
+						['Bills', hrefForSection(dashboard.filters, 'bills')],
+						['Houses', hrefForSection(dashboard.filters, 'houses')]
 					].map(([label, href]) => (
 						<a className="rounded px-2 py-1.5 text-center text-[10.5px] font-semibold text-[var(--bz-text-2)] transition hover:bg-[var(--bz-surface)] hover:text-[var(--bz-accent)] bz-focus" href={href} key={label}>
 							{label}
@@ -1380,6 +1553,10 @@ function FilterBar({
 		.slice()
 		.sort((left, right) => right.count - left.count)
 		.map(({ area, count }) => ({ area, count, label: ministryLabel(area) }));
+	const isHousesSection = filters.section === 'houses';
+	const filterGridClass = isHousesSection
+		? 'bz-panel grid max-w-full gap-3 overflow-visible rounded-lg p-3 md:grid-cols-2 xl:grid-cols-4'
+		: 'bz-panel grid max-w-full gap-3 overflow-visible rounded-lg p-3 md:grid-cols-2 xl:grid-cols-6';
 	const formKey = [
 		filters.section,
 		filters.language,
@@ -1395,10 +1572,12 @@ function FilterBar({
 	].join(':');
 
 	return (
-		<form key={formKey} className="bz-panel grid max-w-full gap-3 overflow-hidden rounded-lg p-3 md:grid-cols-2 xl:grid-cols-6" action="/" method="GET">
+		<form key={formKey} className={filterGridClass} action="/" method="GET">
 			<input type="hidden" name="section" value={filters.section} />
 			<input type="hidden" name="lang" value={filters.language} />
 			{filters.source !== 'all' && <input type="hidden" name="source" value={filters.source} />}
+			{isHousesSection && filters.area !== 'all' && <input type="hidden" name="area" value={filters.area} />}
+			{isHousesSection && filters.status !== 'all' && <input type="hidden" name="status" value={filters.status} />}
 			<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 				{t('field.search', filters.language)}
 				<input
@@ -1416,17 +1595,19 @@ function FilterBar({
 					<option value="rajya-sabha">{houseLabelsLocalized[filters.language]['rajya-sabha']}</option>
 				</select>
 			</label>
-			<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
-				Policy area
-				<select name="area" defaultValue={filters.area} className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
-					<option value="all">All areas</option>
-					{visibleAreaOptions.map(({ area, label, count }) => (
-						<option value={area} key={area}>
-							{label} ({count.toLocaleString('en-IN')})
-						</option>
-					))}
-				</select>
-			</label>
+			{!isHousesSection && (
+				<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
+					Policy area
+					<select name="area" defaultValue={filters.area} className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
+						<option value="all">All areas</option>
+						{visibleAreaOptions.map(({ area, label, count }) => (
+							<option value={area} key={area}>
+								{label} ({count.toLocaleString('en-IN')})
+							</option>
+						))}
+					</select>
+				</label>
+			)}
 			<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 				Prime Minister
 				<select name="pm" defaultValue={filters.primeMinister} className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
@@ -1448,18 +1629,20 @@ function FilterBar({
 					className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10"
 				/>
 			</label>
-			<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
-				{t('field.billStage', filters.language)}
-				<select name="status" defaultValue={filters.status} className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
-					<option value="all">{t('field.allStages', filters.language)}</option>
-					{visibleStageOptions.map(({ stage, count }) => (
-						<option value={stage} key={stage}>
-							{stageLabelsLocalized[filters.language][stage]}{count ? ` (${count.toLocaleString('en-IN')})` : ''}
-						</option>
-					))}
-				</select>
-			</label>
-			<div className="flex min-w-0 flex-wrap items-center justify-between gap-2 md:col-span-2 xl:col-span-6">
+			{!isHousesSection && (
+				<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
+					{t('field.billStage', filters.language)}
+					<select name="status" defaultValue={filters.status} className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
+						<option value="all">{t('field.allStages', filters.language)}</option>
+						{visibleStageOptions.map(({ stage, count }) => (
+							<option value={stage} key={stage}>
+								{stageLabelsLocalized[filters.language][stage]}{count ? ` (${count.toLocaleString('en-IN')})` : ''}
+							</option>
+						))}
+					</select>
+				</label>
+			)}
+			<div className={cx('flex min-w-0 flex-wrap items-center justify-between gap-2 md:col-span-2', isHousesSection ? 'xl:col-span-4' : 'xl:col-span-6')}>
 				{filters.source !== 'all' ? (
 					<div className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2.5 py-1 text-[11px] text-[var(--bz-text-2)]">
 						<span>
@@ -2544,16 +2727,17 @@ function PartyPositionBadge({ side }: { side: PartyPositionSide }) {
 function BillDetailPanel({
 	bill,
 	actions = [],
-	language,
+	filters,
 	analysis,
 	analysisStatus = 'local'
 }: {
 	bill: Bill | null;
 	actions?: BillAction[];
-	language: Language;
+	filters: DashboardFilters;
 	analysis?: BillAnalysis | null;
 	analysisStatus?: AnalysisStatus;
 }) {
+	const language = filters.language;
 	if (!bill) {
 		return (
 			<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
@@ -2652,7 +2836,7 @@ function BillDetailPanel({
 				</div>
 				<div className="mt-5 flex flex-wrap gap-2">
 					<SourceBadge url={bill.source_url} isDemoSeed={bill.isDemoSeed} />
-					<a className="rounded border border-[var(--bz-border)] px-2 py-1 text-[10.5px] font-medium text-[var(--bz-text-2)] transition hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)] bz-focus" href={hrefFor('bills', language, { bill: bill.id })}>
+					<a className="rounded border border-[var(--bz-border)] px-2 py-1 text-[10.5px] font-medium text-[var(--bz-text-2)] transition hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)] bz-focus" href={hrefForSection(filters, 'bills', { bill: bill.id })}>
 						{t('action.openBillRoute', language)}
 					</a>
 				</div>

@@ -201,5 +201,5 @@ export type SourceEntry = {
 	kind: SourceKind;
 	url: string;
 	preparedFor: string;
-	status: 'prepared' | 'future-adapter';
+	status: 'using-now' | 'discovery-ready' | 'planned';
 };

@@ -14,10 +14,11 @@ type PdlSearchRecord = {
 
 const BASE_URL = 'https://eparlib.sansad.in';
 const OUTPUT_FILE = 'src/lib/data/generated/pdl-pre2004-legislation.ts';
-const MIN_YEAR = 1991;
+const MIN_YEAR = 1947;
 const MAX_YEAR = 2003;
 const RPP = 100;
 const MAX_PAGES_PER_YEAR = 12;
+const YEAR_FETCH_CONCURRENCY = 4;
 
 const REQUEST_HEADERS = {
 	accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -192,6 +193,27 @@ async function loadYearRecords(year: number): Promise<PdlSearchRecord[]> {
 	return [...records.values()].sort((left, right) => left.date.localeCompare(right.date) || left.title.localeCompare(right.title));
 }
 
+async function mapWithConcurrency<T, U>(
+	items: T[],
+	concurrency: number,
+	mapper: (item: T) => Promise<U>
+): Promise<U[]> {
+	const results = new Array<U>(items.length);
+	let nextIndex = 0;
+
+	await Promise.all(
+		Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+			while (nextIndex < items.length) {
+				const index = nextIndex;
+				nextIndex += 1;
+				results[index] = await mapper(items[index]);
+			}
+		})
+	);
+
+	return results;
+}
+
 function inferMinistry(title: string) {
 	const normalized = title.toLowerCase();
 	if (/finance|appropriation|tax|bank|insurance|securities|customs|excise|income-tax|tariff/.test(normalized)) return 'Ministry of Finance';
@@ -311,8 +333,11 @@ function uniqueById<T extends { id: string }>(items: T[]) {
 }
 
 async function main() {
-	const recordsByYear = await Promise.all(
-		Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, index) => loadYearRecords(MIN_YEAR + index))
+	const years = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, index) => MIN_YEAR + index);
+	const recordsByYear = await mapWithConcurrency(
+		years,
+		YEAR_FETCH_CONCURRENCY,
+		async (year) => loadYearRecords(year)
 	);
 	const records = recordsByYear.flat();
 	const assigned = new Map<string, number>();

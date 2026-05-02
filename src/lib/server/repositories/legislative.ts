@@ -1,4 +1,5 @@
 import type { BillDetailData, DashboardData } from '$lib/data/view-model';
+import { dataGovDebates, dataGovMeta } from '$lib/data/generated/data-gov-questions';
 import type { DashboardFilters } from '$lib/domain/dashboard-filters';
 import type { Bill, Debate, SourceEntry, TimelineEvent } from '$lib/domain/types';
 import {
@@ -51,7 +52,7 @@ const repositorySeedMeta: DashboardData['seedMeta'] = {
 	label: 'Sansad, PRS, and Parliament Digital Library legislation records',
 	description:
 		'Generated from the Sansad legislation API path with a public mirror fallback, PRS India historical bill pages, Parliament Digital Library pre-2004 bill proceedings, plus a small manually curated set from PIB, Gazette/Act PDFs, and India Code.',
-	updatedAt: '2026-04-29'
+	updatedAt: '2026-05-01'
 };
 
 const repositorySources: SourceEntry[] = [
@@ -60,76 +61,77 @@ const repositorySources: SourceEntry[] = [
 		name: 'Sansad portal',
 		kind: 'sansad',
 		url: 'https://sansad.in/',
-		preparedFor: 'Parliament home pages, sessions, members, questions, debates, committees, and legislation records.',
-		status: 'prepared'
+		preparedFor: 'Using Sansad legislation records for current Bill rows, actions, stages, and Act linkage.',
+		status: 'using-now'
 	},
 	{
 		id: 'source-lok-sabha',
 		name: 'Lok Sabha official pages',
 		kind: 'lok-sabha',
 		url: 'https://sansad.in/ls',
-		preparedFor: 'Lok Sabha Bills, agenda items, questions, debates, committee referrals, and sitting-day activity.',
-		status: 'future-adapter'
+		preparedFor: 'Using Lok Sabha-family records through Sansad links, Lok Sabha document URLs, and Parliament Digital Library proceedings.',
+		status: 'using-now'
 	},
 	{
 		id: 'source-rajya-sabha',
 		name: 'Rajya Sabha official pages',
 		kind: 'rajya-sabha',
 		url: 'https://sansad.in/rs',
-		preparedFor: 'Rajya Sabha Bills, questions, debates, and Money Bill recommendation-window updates.',
-		status: 'future-adapter'
+		preparedFor: 'Planned for direct Rajya Sabha Bills, questions, debates, and Money Bill recommendation-window updates.',
+		status: 'planned'
 	},
 	{
 		id: 'source-prs',
 		name: 'PRS Legislative Research',
 		kind: 'prs',
 		url: 'https://prsindia.org/billtrack/category/all',
-		preparedFor: 'Historical Parliament bill tracking records, summaries, ministries, stage dates, and source links before the Sansad API coverage window.',
-		status: 'prepared'
+		preparedFor: 'Using PRS historical bill tracking records, summaries, ministries, stage dates, and source links before the Sansad API coverage window.',
+		status: 'using-now'
 	},
 	{
 		id: 'source-pdl',
 		name: 'Parliament Digital Library',
 		kind: 'lok-sabha',
 		url: 'https://eparlib.sansad.in/',
-		preparedFor: 'Pre-2004 Lok Sabha bill proceedings and debate-title records for historical Prime Minister term coverage.',
-		status: 'prepared'
+		preparedFor: 'Using pre-2004 Lok Sabha bill proceedings and debate-title records for historical Prime Minister term coverage.',
+		status: 'using-now'
 	},
 	{
 		id: 'source-india-code',
 		name: 'India Code',
 		kind: 'india-code',
 		url: 'https://www.indiacode.nic.in/',
-		preparedFor: 'Act text, Act numbers, central legislation, state legislation, and bilingual legal access.',
-		status: 'future-adapter'
+		preparedFor: 'Using India Code and Act PDF links where loaded for enacted-law records and source badges.',
+		status: 'using-now'
 	},
 	{
 		id: 'source-data-gov',
 		name: 'Open Government Data Platform India',
 		kind: 'data-gov',
 		url: 'https://data.gov.in/',
-		preparedFor: 'Supplemental catalog and metadata datasets when official datasets are available.',
-		status: 'future-adapter'
+		preparedFor: `Using ${dataGovMeta.questionCatalogs.toLocaleString('en-IN')} Rajya Sabha question-answer catalogs and ${dataGovMeta.debateCatalogs.toLocaleString('en-IN')} verbatim debate catalogs discovered from OGD India.`,
+		status: 'using-now'
 	},
 	{
 		id: 'source-egazette',
 		name: 'eGazette',
 		kind: 'egazette',
 		url: 'https://egazette.nic.in/',
-		preparedFor: 'Post-assent publication notices and Gazette notification trail.',
-		status: 'future-adapter'
+		preparedFor: 'Planned for post-assent publication notices and Gazette notification trail.',
+		status: 'planned'
 	},
 	{
 		id: 'source-neva',
 		name: 'NeVA',
 		kind: 'neva',
 		url: 'https://neva.gov.in/',
-		preparedFor: 'State legislature expansion through Vidhan Sabha and Vidhan Parishad sources.',
-		status: 'future-adapter'
+		preparedFor: 'Planned for state legislature expansion through Vidhan Sabha and Vidhan Parishad sources.',
+		status: 'planned'
 	}
 ];
 
 const repositoryDebates: Debate[] = [
+	...dataGovDebates,
 	{
 		id: 'debate-income-tax-bill-introduced',
 		house: 'lok-sabha',

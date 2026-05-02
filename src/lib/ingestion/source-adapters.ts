@@ -1,6 +1,6 @@
 import type { House, SourceKind } from '$lib/domain/types';
 
-export type AdapterStatus = 'prepared-contract' | 'future-adapter';
+export type AdapterStatus = 'using-now' | 'prepared-contract' | 'future-adapter';
 export type IngestionPipelineStep =
 	| 'source_capture'
 	| 'normalization'
@@ -96,12 +96,12 @@ export const officialSourceAdapters: OfficialSourceAdapter[] = [
 		id: 'data-gov',
 		name: 'Open Government Data Platform India',
 		baseUrl: 'https://data.gov.in/',
-		status: 'prepared-contract',
+		status: 'using-now',
 		authority: 'open-data',
 		supportedHouses: ['lok-sabha', 'rajya-sabha'],
 		outputs: ['questions', 'debates', 'timeline_events'],
 		notes:
-			'Supplemental structured catalog source for Rajya Sabha question-answer annexures and Lok Sabha/Rajya Sabha debate datasets. scripts/discover-source-catalogs.ts audits catalog/API availability without writing production rows.'
+			'Supplemental structured catalog source for Rajya Sabha question-answer annexures and Lok Sabha/Rajya Sabha debate datasets. scripts/discover-source-catalogs.ts audits catalog/API availability, and scripts/sync-data-gov-questions.ts publishes OGD catalog rows into the read model.'
 	},
 	{
 		id: 'egazette',
@@ -127,7 +127,7 @@ export const officialSourceAdapters: OfficialSourceAdapter[] = [
 
 export function getPreparedSourceAdapters(): OfficialSourceAdapter[] {
 	return officialSourceAdapters.filter(
-		(adapter) => adapter.status === 'prepared-contract' || adapter.status === 'future-adapter'
+		(adapter) => adapter.status === 'using-now' || adapter.status === 'prepared-contract' || adapter.status === 'future-adapter'
 	);
 }
 

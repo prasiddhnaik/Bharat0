@@ -22,11 +22,11 @@ assert.ok(
 	officialSourceAdapters.some(
 		(adapter) =>
 			adapter.id === 'data-gov' &&
-			adapter.status === 'prepared-contract' &&
+			adapter.status === 'using-now' &&
 			adapter.outputs.includes('questions') &&
 			adapter.outputs.includes('debates')
 	),
-	'data.gov.in adapter should be prepared for question-answer and debate catalog discovery'
+	'data.gov.in adapter should be active for question-answer and debate catalog discovery'
 );
 assert.ok(
 	officialSourceAdapters.some(

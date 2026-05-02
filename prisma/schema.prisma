@@ -243,3 +243,42 @@ model BillSourceText {
   @@index([text_hash])
   @@index([status])
 }
+
+model PrimeMinisterProfile {
+  id           String   @id @default(cuid())
+  term_ids     String[]
+  summary      String
+  highlights   Json
+  source_label String
+  source_url   String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@unique([source_url])
+  @@index([term_ids])
+}
+
+model LokSabhaPowerSnapshot {
+  id                      String   @id @default(cuid())
+  prime_minister_term_ids String[]
+  lok_sabha               String
+  period                  String
+  election_year           Int
+  largest_party           String
+  largest_party_seats     Int
+  runner_up_party         String
+  runner_up_seats         Int
+  governing_side          String
+  governing_seats         Int?
+  majority_mark           Int
+  power_summary           String
+  composition             Json
+  source_label            String
+  source_url              String
+  as_of                   String
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  @@unique([lok_sabha, election_year, period])
+  @@index([prime_minister_term_ids])
+}

@@ -1,5 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseDashboardFilters } from '$lib/domain/dashboard-filters';
+import { getLokSabhaPowerSnapshotForPrimeMinister, lokSabhaPowerSnapshots } from '$lib/domain/parliament-houses';
+import { getPrimeMinisterProfile, primeMinisterProfiles } from '$lib/domain/prime-minister-profiles';
+import { getPrimeMinisterTerm, PRIME_MINISTER_TERMS } from '$lib/domain/prime-ministers';
 import { groupTimelineEventsByDate } from '$lib/domain/timeline-view';
 import { analyzeBillWithConfiguredProvider, getAiAnalysisProvider, getBillAnalysisInputHash, getBillAnalysisModel } from '$lib/server/ai/groq-bill-analysis';
 import { persistBillAnalysis, readPersistedBillAnalysis } from '$lib/server/ai/persistent-analysis-cache';
@@ -216,6 +219,37 @@ async function handleHealth(response: ServerResponse) {
 	}
 }
 
+function getPrimeMinisterData(termId: string) {
+	const term = getPrimeMinisterTerm(termId as never);
+	if (!term) return null;
+	return {
+		term,
+		profile: getPrimeMinisterProfile(term.id),
+		power: getLokSabhaPowerSnapshotForPrimeMinister(term.id)
+	};
+}
+
+function getPrimeMinisterListResponse() {
+	return {
+		items: PRIME_MINISTER_TERMS.map((term) => ({
+			...term,
+			profile: getPrimeMinisterProfile(term.id),
+			power: getLokSabhaPowerSnapshotForPrimeMinister(term.id)
+		}))
+	};
+}
+
+function getSourceCatalogResponse() {
+	const profileSourceUrls = new Set(primeMinisterProfiles.map((profile) => profile.sourceUrl));
+	const powerSourceUrls = new Set(lokSabhaPowerSnapshots.map((snapshot) => snapshot.sourceUrl));
+	return {
+		primeMinisterProfiles: primeMinisterProfiles.length,
+		primeMinisterProfileSources: Array.from(profileSourceUrls).map((url) => ({ url, kind: 'pm-profile' })),
+		housePowerSnapshots: lokSabhaPowerSnapshots.length,
+		housePowerSources: Array.from(powerSourceUrls).map((url) => ({ url, kind: 'house-power' }))
+	};
+}
+
 export async function handleBharatZeroApi(request: IncomingMessage, response: ServerResponse) {
 	if (!request.url) {
 		sendError(response, 400, 'Missing request URL.');
@@ -237,6 +271,38 @@ export async function handleBharatZeroApi(request: IncomingMessage, response: Se
 
 		if (url.pathname === '/api/dashboard') {
 			sendJson(response, 200, await getDashboardResponse(url.searchParams));
+			return;
+		}
+
+		if (url.pathname === '/api/prime-ministers') {
+			sendJson(response, 200, getPrimeMinisterListResponse());
+			return;
+		}
+
+		const primeMinisterMatch = url.pathname.match(/^\/api\/prime-ministers\/([^/]+)$/);
+		if (primeMinisterMatch) {
+			const data = getPrimeMinisterData(decodeURIComponent(primeMinisterMatch[1]));
+			if (!data) {
+				sendError(response, 404, 'Prime Minister term not found.');
+				return;
+			}
+			sendJson(response, 200, data);
+			return;
+		}
+
+		if (url.pathname === '/api/houses/power') {
+			const primeMinister = url.searchParams.get('pm');
+			const power = getLokSabhaPowerSnapshotForPrimeMinister(primeMinister);
+			if (!power) {
+				sendError(response, 404, 'House power snapshot not found.');
+				return;
+			}
+			sendJson(response, 200, { power });
+			return;
+		}
+
+		if (url.pathname === '/api/sources') {
+			sendJson(response, 200, getSourceCatalogResponse());
 			return;
 		}
 

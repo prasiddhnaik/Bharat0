@@ -17,12 +17,14 @@
 	const language = $derived(data.dashboard.filters.language);
 	const actBillsById = $derived(new Map((data.dashboard.actBills ?? data.dashboard.allBills).map((bill) => [bill.id, bill])));
 	const sourceStatusLabels = {
-		prepared: 'Ready to connect',
-		'future-adapter': 'Planned source'
+		'using-now': 'Using now',
+		'discovery-ready': 'Discovery wired',
+		planned: 'Planned source'
 	};
 	const sourceStatusHelp = {
-		prepared: 'The app already has a defined record shape for this source.',
-		'future-adapter': 'This official source is identified, but the connector is scheduled for later.'
+		'using-now': 'Current BharatZero records are loaded from this source family.',
+		'discovery-ready': 'Discovery/parsing is wired, but production records are not loaded from this source yet.',
+		planned: 'This official source is identified, but the connector is scheduled for later.'
 	};
 	const sourcePipelineLabels = ['Find official record', 'Clean and match fields', 'Place on bill timeline', 'Show in BharatZero'];
 
@@ -97,6 +99,30 @@
 		</section>
 	{:else if section === 'timeline'}
 		<TimelineRail events={data.dashboard.timelineEvents} dateRail={data.dashboard.timelineDateRail} groups={data.dashboard.timelineGroups} />
+	{:else if section === 'houses'}
+		<section class="space-y-4">
+			<div class="bz-panel rounded-lg p-5">
+				<p class="bz-eyebrow text-[var(--bz-accent)]">Union Parliament</p>
+				<h2 class="mt-2 text-xl font-semibold text-[var(--bz-text-1)]">Seats, control, and House roles</h2>
+				<p class="mt-2 max-w-3xl text-sm leading-6 text-[var(--bz-text-2)]">
+					Use the Prime Minister history control in the left panel to switch government terms while keeping this Houses view focused on parliamentary structure.
+				</p>
+				<div class="mt-4 grid gap-3 md:grid-cols-3">
+					<div class="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+						<p class="bz-eyebrow text-[0.55rem]">Lok Sabha</p>
+						<p class="mt-2 text-sm font-semibold text-[var(--bz-text-1)]">Directly elected chamber</p>
+					</div>
+					<div class="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+						<p class="bz-eyebrow text-[0.55rem]">Rajya Sabha</p>
+						<p class="mt-2 text-sm font-semibold text-[var(--bz-text-1)]">Council of States</p>
+					</div>
+					<div class="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3">
+						<p class="bz-eyebrow text-[0.55rem]">PM context</p>
+						<p class="mt-2 text-sm font-semibold text-[var(--bz-text-1)]">Left panel selector</p>
+					</div>
+				</div>
+			</div>
+		</section>
 	{:else if section === 'bills'}
 		<BillList bills={data.dashboard.bills} selectedBillId={data.selectedBillId ?? undefined} {language} />
 	{:else if section === 'committees'}
@@ -179,11 +205,14 @@
 			<h2 class="mt-2 text-xl font-semibold text-[var(--bz-text-1)]">Where BharatZero will link each record</h2>
 			<p class="mt-2 max-w-3xl text-sm leading-6 text-[var(--bz-text-2)]">
 				Every bill, action, question, debate, and Act should trace back to an official public source.
-				This screen shows which source families are ready to connect and which are planned next.
+				This screen shows which source families feed current records, which are discovery-only, and which are planned next.
 			</p>
 			<div class="mt-4 flex flex-wrap gap-2 text-xs text-[var(--bz-text-2)]">
 				<span class="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">
-					<b class="text-[var(--bz-text-1)]">Ready to connect</b> means the source shape is defined.
+					<b class="text-[var(--bz-text-1)]">Using now</b> means current records are loaded from that source family.
+				</span>
+				<span class="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">
+					<b class="text-[var(--bz-text-1)]">Discovery wired</b> means metadata checks exist but rows are not loaded yet.
 				</span>
 				<span class="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">
 					<b class="text-[var(--bz-text-1)]">Planned source</b> means the official source is identified for a future connector.
