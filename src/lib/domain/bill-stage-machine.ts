@@ -3,6 +3,7 @@ import type { BillStage, BillType, House, SectionId, SourceKind } from './types'
 export const sectionLabels: Record<SectionId, string> = {
 	overview: 'Overview',
 	houses: 'Houses',
+	states: 'States',
 	timeline: 'Timeline',
 	bills: 'Bills',
 	committees: 'Committees',

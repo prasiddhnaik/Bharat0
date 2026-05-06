@@ -33,6 +33,7 @@ type TranslationKey =
 	| 'label.searchPlaceholder'
 	| 'section.overview'
 	| 'section.houses'
+	| 'section.states'
 	| 'section.timeline'
 	| 'section.bills'
 	| 'section.committees'
@@ -72,6 +73,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
 		'label.searchPlaceholder': 'Search bills, Hindi titles, ministries',
 		'section.overview': 'Overview',
 		'section.houses': 'Houses',
+		'section.states': 'States',
 		'section.timeline': 'Timeline',
 		'section.bills': 'Bills',
 		'section.committees': 'Committees',
@@ -110,6 +112,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
 		'label.searchPlaceholder': 'विधेयक, हिंदी शीर्षक, मंत्रालय खोजें',
 		'section.overview': 'अवलोकन',
 		'section.houses': 'सदन',
+		'section.states': 'राज्य',
 		'section.timeline': 'टाइमलाइन',
 		'section.bills': 'विधेयक',
 		'section.committees': 'समितियां',

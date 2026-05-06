@@ -33,6 +33,7 @@ import {
 import { DEFAULT_BILLS_PAGE_SIZE, parseDashboardFilters, type DashboardFilters } from '$lib/domain/dashboard-filters';
 import { getActPartyPositionSourceRefs, getActPartyPositions, getBillPartyPositions, type PartyPositionSide } from '$lib/domain/party-positions';
 import { formatEconomicImpactForPanel } from '$lib/domain/economic-impact';
+import { StateGovernanceMethodology, StatesSection } from '$lib/components/states/StatesSection';
 import {
 	getLokSabhaPowerSnapshotForPrimeMinister,
 	parliamentHouseSnapshots,
@@ -258,9 +259,12 @@ function termDurationLabel(startDate: string, endDate?: string) {
 
 function App() {
 	const [locationSearch, setLocationSearch] = useState(() => window.location.search);
+	const [locationPath, setLocationPath] = useState(() => window.location.pathname);
 	const filters = useMemo(() => normalizeFiltersForSection(parseDashboardFilters(new URLSearchParams(locationSearch))), [locationSearch]);
 	const dashboard = useMemo<AppDashboardData>(() => getDashboardData(filters), [filters]);
 	const locationParams = new URLSearchParams(locationSearch);
+	const showingMethodology = locationPath === '/methodology';
+	const shellSection = showingMethodology ? 'states' : dashboard.filters.section;
 	const selectedBillId = dashboard.filters.section === 'bills' ? (locationParams.get('bill') ?? dashboard.bills[0]?.id ?? null) : locationParams.get('bill');
 	const selectedActId = dashboard.filters.section === 'acts' ? (locationParams.get('act') ?? dashboard.acts[0]?.id ?? null) : null;
 	const selectedDebateId = dashboard.filters.section === 'debates' ? (locationParams.get('debate') ?? dashboard.debates[0]?.id ?? null) : null;
@@ -294,11 +298,15 @@ function App() {
 		}
 
 		window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+		setLocationPath(url.pathname);
 		setLocationSearch(url.search);
 	}, []);
 
 	useEffect(() => {
-		const handlePopState = () => setLocationSearch(window.location.search);
+		const handlePopState = () => {
+			setLocationPath(window.location.pathname);
+			setLocationSearch(window.location.search);
+		};
 		window.addEventListener('popstate', handlePopState);
 		return () => window.removeEventListener('popstate', handlePopState);
 	}, []);
@@ -339,7 +347,7 @@ function App() {
 
 	return (
 		<AppShell
-			section={dashboard.filters.section}
+			section={shellSection}
 			query={dashboard.filters.query}
 			language={dashboard.filters.language}
 			dashboard={dashboard}
@@ -353,7 +361,11 @@ function App() {
 				) : null
 			}
 		>
-			<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedActId={selectedActId} selectedDebateId={selectedDebateId} selectedBill={selectedBillForRender} selectedBillAnalysis={selectedBillAnalysis} selectedAnalysisStatus={selectedAnalysisStatus} onNavigate={navigateInApp} />
+			{showingMethodology ? (
+				<StateGovernanceMethodology language={dashboard.filters.language} onNavigate={navigateInApp} />
+			) : (
+				<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedActId={selectedActId} selectedDebateId={selectedDebateId} selectedBill={selectedBillForRender} selectedBillAnalysis={selectedBillAnalysis} selectedAnalysisStatus={selectedAnalysisStatus} onNavigate={navigateInApp} />
+			)}
 		</AppShell>
 	);
 }
@@ -395,8 +407,8 @@ function MainContent({
 
 	return (
 		<>
-			<FilterBar filters={filters} sessionName={sessionName} stageCounts={dashboard.stageCounts ?? []} areaCounts={dashboard.areaCounts ?? []} />
-			<LoadTimeNotice />
+			{filters.section !== 'states' && <FilterBar filters={filters} sessionName={sessionName} stageCounts={dashboard.stageCounts ?? []} areaCounts={dashboard.areaCounts ?? []} />}
+			{filters.section !== 'states' && <LoadTimeNotice />}
 
 			{filters.section === 'overview' && (
 				<>
@@ -422,6 +434,8 @@ function MainContent({
 			{filters.section === 'timeline' && <TimelineRail events={dashboard.timelineEvents} dateRail={dashboard.timelineDateRail} groups={dashboard.timelineGroups} />}
 
 			{filters.section === 'houses' && <HousesSection filters={filters} />}
+
+			{filters.section === 'states' && <StatesSection language={filters.language} onNavigate={onNavigate} />}
 
 			{filters.section === 'bills' && (
 				<div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] 2xl:grid-cols-1">
@@ -921,6 +935,8 @@ function AppShell({
 	const [signedInDemo, setSignedInDemo] = useState(false);
 	const [cabinetOpen, setCabinetOpen] = useState(false);
 	const hasAside = Boolean(aside);
+	const showLeftSidebar = section !== 'states' && !sidebarCollapsed;
+	const showSearch = section !== 'states';
 	const now = new Date();
 	const updatedDate = new Intl.DateTimeFormat('en-IN', {
 		weekday: 'short',
@@ -934,16 +950,16 @@ function AppShell({
 	}).format(now);
 
 	return (
-		<div className={cx(darkMode && 'dark', 'min-h-dvh overflow-hidden bg-[var(--bz-bg)] text-[var(--bz-text-1)]')}>
+		<div className={cx(darkMode && 'dark', 'flex h-dvh flex-col overflow-hidden bg-[var(--bz-bg)] text-[var(--bz-text-1)]')}>
 			<header className="sticky top-0 z-50 flex min-h-12 items-center gap-1 border-b border-[var(--bz-border)] bg-[var(--bz-surface)] px-2 sm:gap-2 sm:px-3">
 				<a className="shrink-0 text-[13px] font-bold tracking-tight text-[var(--bz-accent)] bz-focus sm:text-sm" href={hrefForSection(dashboard.filters, 'overview')}>
 					BharatZero
 				</a>
 				<div className="hidden h-5 w-px bg-[var(--bz-border)] sm:block" />
 				<SectionTabs active={section} filters={dashboard.filters} language={language} />
-				<div className="mx-auto hidden min-w-[14rem] max-w-[24rem] flex-1 md:block">
+				{showSearch && <div className="mx-auto hidden min-w-[14rem] max-w-[24rem] flex-1 md:block">
 					<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} primeMinister={dashboard.filters.primeMinister} />
-				</div>
+				</div>}
 				<div className="ml-auto flex shrink-0 items-center gap-1">
 					<div className="hidden items-center gap-2 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1 lg:flex">
 						<span className="relative h-2 w-2">
@@ -997,23 +1013,27 @@ function AppShell({
 
 			<div
 				className={cx(
-					'grid h-[calc(100dvh-2.75rem)] min-h-0 grid-cols-1 overflow-hidden',
-					sidebarCollapsed
+					'grid min-h-0 flex-1 grid-cols-1 overflow-hidden',
+					showLeftSidebar
+						? hasAside
+							? 'lg:grid-cols-[260px_minmax(0,1fr)_340px]'
+							: 'lg:grid-cols-[260px_minmax(0,1fr)]'
+						: sidebarCollapsed
 						? hasAside
 							? 'lg:grid-cols-[minmax(0,1fr)_340px]'
 							: 'lg:grid-cols-[minmax(0,1fr)]'
 						: hasAside
-							? 'lg:grid-cols-[260px_minmax(0,1fr)_340px]'
-							: 'lg:grid-cols-[260px_minmax(0,1fr)]'
+							? 'lg:grid-cols-[minmax(0,1fr)_340px]'
+							: 'lg:grid-cols-[minmax(0,1fr)]'
 				)}
 			>
-				{!sidebarCollapsed && <LeftSidebar cabinetOpen={cabinetOpen} setCabinetOpen={setCabinetOpen} dashboard={dashboard} language={language} />}
+				{showLeftSidebar && <LeftSidebar cabinetOpen={cabinetOpen} setCabinetOpen={setCabinetOpen} dashboard={dashboard} language={language} />}
 				<main className="min-h-0 min-w-0 overflow-y-auto">
-					<div className="mx-auto max-w-[1120px] space-y-3 p-2 sm:p-3 lg:p-4">
-						<div className="md:hidden">
+					<div className={cx('space-y-3 p-2 sm:p-3 lg:p-4', section === 'states' ? 'w-full max-w-none' : 'mx-auto max-w-[1120px]')}>
+						{showSearch && <div className="md:hidden">
 							<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} primeMinister={dashboard.filters.primeMinister} />
-						</div>
-						<MobilePrimeMinisterPanel dashboard={dashboard} />
+						</div>}
+						{section !== 'states' && <MobilePrimeMinisterPanel dashboard={dashboard} />}
 						{children}
 					</div>
 				</main>
@@ -1024,7 +1044,7 @@ function AppShell({
 }
 
 function SectionTabs({ active, filters, language }: { active: SectionId; filters: DashboardFilters; language: Language }) {
-	const fixedSections: SectionId[] = ['houses', 'timeline'];
+	const fixedSections: SectionId[] = ['houses', 'states', 'timeline'];
 	const primarySections: SectionId[] = ['bills', 'committees'];
 	const secondarySections = SECTION_IDS.filter((section) => section !== 'overview' && !fixedSections.includes(section) && !primarySections.includes(section));
 	const linkClass = (section: SectionId) =>

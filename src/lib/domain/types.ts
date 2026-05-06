@@ -1,6 +1,7 @@
 export const SECTION_IDS = [
 	'overview',
 	'houses',
+	'states',
 	'timeline',
 	'bills',
 	'committees',
