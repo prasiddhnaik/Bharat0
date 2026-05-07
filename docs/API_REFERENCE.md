@@ -714,6 +714,6 @@ const pmData = await fetch('/api/prime-ministers/nehru').then(r => r.json());
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Database Schema](./DATABASE.md)
 - [Data Pipeline](./DATA_PIPELINE.md)
-- [API Flow Diagrams](./diagrams/api-flows.md) - Detailed sequence and flow diagrams
-- [Frontend Architecture](./diagrams/frontend-architecture.md) - Component hierarchy and data flow
-- [Bill Lifecycle](./diagrams/bill-lifecycle.md) - State machine diagrams for bill stages
+- [API Flow Diagrams](./DIAGRAM_API_FLOWS.md) - Detailed sequence and flow diagrams
+- [Frontend Architecture](./DIAGRAM_FRONTEND_ARCHITECTURE.md) - Component hierarchy and data flow
+- [Bill Lifecycle](./DIAGRAM_BILL_LIFECYCLE.md) - State machine diagrams for bill stages

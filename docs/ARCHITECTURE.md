@@ -563,8 +563,8 @@ npm run verify:data-pipeline → Full pipeline test
 - [Database Schema](./DATABASE.md)
 - [Data Pipeline](./DATA_PIPELINE.md)
 - [Developer Guide](./DEVELOPER_GUIDE.md)
-- [Diagrams](./diagrams/)
-  - [Bill Lifecycle State Machines](./diagrams/bill-lifecycle.md)
-  - [API Flow Diagrams](./diagrams/api-flows.md)
-  - [Frontend Component Architecture](./diagrams/frontend-architecture.md)
-  - [State Governance Diagrams](./diagrams/state-governance.md)
+- Diagrams
+  - [Bill Lifecycle State Machines](./DIAGRAM_BILL_LIFECYCLE.md)
+  - [API Flow Diagrams](./DIAGRAM_API_FLOWS.md)
+  - [Frontend Component Architecture](./DIAGRAM_FRONTEND_ARCHITECTURE.md)
+  - [State Governance Diagrams](./DIAGRAM_STATE_GOVERNANCE.md)

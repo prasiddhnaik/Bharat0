@@ -15,7 +15,10 @@ This document lists all generated documentation and provides a verification chec
 | [DATA_PIPELINE.md](./DATA_PIPELINE.md) | Data ingestion pipeline | ✅ Complete |
 | [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) | Developer setup and workflow | ✅ Complete |
 | [MODULE_DOCS.md](./MODULE_DOCS.md) | Module-level API documentation | ✅ Complete |
-| [diagrams/state-governance.md](./diagrams/state-governance.md) | States tab map/list/verification diagrams | ✅ Complete |
+| [DIAGRAM_STATE_GOVERNANCE.md](./DIAGRAM_STATE_GOVERNANCE.md) | States tab map/list/verification diagrams | ✅ Complete |
+| [DIAGRAM_API_FLOWS.md](./DIAGRAM_API_FLOWS.md) | API request/response sequence diagrams | ✅ Complete |
+| [DIAGRAM_BILL_LIFECYCLE.md](./DIAGRAM_BILL_LIFECYCLE.md) | Bill lifecycle state machine | ✅ Complete |
+| [DIAGRAM_FRONTEND_ARCHITECTURE.md](./DIAGRAM_FRONTEND_ARCHITECTURE.md) | Frontend component hierarchy | ✅ Complete |
 
 ## Documentation Coverage
 
@@ -123,8 +126,10 @@ docs/
 ├── DATA_PIPELINE.md             ← Data engineers
 ├── DEVELOPER_GUIDE.md           ← Developers
 ├── MODULE_DOCS.md               ← Module reference
-├── diagrams/                    ← Mermaid diagrams
-│   └── state-governance.md      ← States tab map/list/verifier flow
+├── DIAGRAM_API_FLOWS.md         ← API sequence diagrams
+├── DIAGRAM_BILL_LIFECYCLE.md    ← Bill stage state machines
+├── DIAGRAM_FRONTEND_ARCHITECTURE.md ← Component hierarchy
+├── DIAGRAM_STATE_GOVERNANCE.md  ← States tab map/list/verifier flow
 └── DOCUMENTATION_CHECKLIST.md   ← This file
 ```
 

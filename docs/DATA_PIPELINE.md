@@ -620,5 +620,5 @@ npm run verify:quick
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Database Schema](./DATABASE.md)
 - [Developer Guide](./DEVELOPER_GUIDE.md)
-- [Bill Lifecycle Diagrams](./diagrams/bill-lifecycle.md) - Visual bill stage workflows
-- [API Flow Diagrams](./diagrams/api-flows.md) - Data pipeline request flows
+- [Bill Lifecycle Diagrams](./DIAGRAM_BILL_LIFECYCLE.md) - Visual bill stage workflows
+- [API Flow Diagrams](./DIAGRAM_API_FLOWS.md) - Data pipeline request flows

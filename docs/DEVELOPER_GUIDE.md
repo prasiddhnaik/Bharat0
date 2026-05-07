@@ -674,7 +674,8 @@ DEBUG="*" npm run dev
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Database Schema](./DATABASE.md)
 - [Data Pipeline](./DATA_PIPELINE.md)
-- [Visual Diagrams](./diagrams/)
-  - [Frontend Architecture](./diagrams/frontend-architecture.md) - Component hierarchy and data flow
-  - [Bill Lifecycle](./diagrams/bill-lifecycle.md) - Bill stage state machines
-  - [API Flows](./diagrams/api-flows.md) - Request/response sequences
+- Visual Diagrams
+  - [Frontend Architecture](./DIAGRAM_FRONTEND_ARCHITECTURE.md) - Component hierarchy and data flow
+  - [Bill Lifecycle](./DIAGRAM_BILL_LIFECYCLE.md) - Bill stage state machines
+  - [API Flows](./DIAGRAM_API_FLOWS.md) - Request/response sequences
+  - [State Governance](./DIAGRAM_STATE_GOVERNANCE.md) - States tab map and verifier flow

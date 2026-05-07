@@ -98,4 +98,4 @@ Client is generated into `src/generated/prisma/` (non-default location, set in `
 
 - SvelteKit route files remain in `src/routes/` but are vestigial — the actual app is `src/App.tsx` (React 19).
 - The `questions` table has schema and UI support but generated rows are not yet populated.
-- Node 22 is required (`"engines": { "node": ">=22 <23" }`).
+- Node 22+ is required (`"engines": { "node": ">=22" }`); Vercel runs Node 24, Dockerfile pins to Node 22.

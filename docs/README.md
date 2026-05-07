@@ -11,16 +11,16 @@ Welcome to the BharatZero documentation. BharatZero is an India-focused legislat
 | [Database Schema](./DATABASE.md) | Complete database schema documentation |
 | [Data Pipeline](./DATA_PIPELINE.md) | Data ingestion, sync, and verification pipeline |
 | [Developer Guide](./DEVELOPER_GUIDE.md) | Setup, development workflow, and deployment |
-| [Visual Diagrams](./diagrams/) | Mermaid diagrams for architecture, flows, and lifecycle |
+| Visual Diagrams (`DIAGRAM_*.md`) | Mermaid diagrams for architecture, flows, and lifecycle |
 
 ## Visual Diagrams
 
 Browse our comprehensive diagram collection:
 
-- **[Bill Lifecycle](./diagrams/bill-lifecycle.md)** - State machines showing how bills progress through Parliament
-- **[API Flows](./diagrams/api-flows.md)** - Sequence diagrams for all API endpoints
-- **[Frontend Architecture](./diagrams/frontend-architecture.md)** - Component hierarchy and data flow
-- **[State Governance](./diagrams/state-governance.md)** - Static state/UT governance map, list sync, and verifier flow
+- **[Bill Lifecycle](./DIAGRAM_BILL_LIFECYCLE.md)** - State machines showing how bills progress through Parliament
+- **[API Flows](./DIAGRAM_API_FLOWS.md)** - Sequence diagrams for all API endpoints
+- **[Frontend Architecture](./DIAGRAM_FRONTEND_ARCHITECTURE.md)** - Component hierarchy and data flow
+- **[State Governance](./DIAGRAM_STATE_GOVERNANCE.md)** - Static state/UT governance map, list sync, and verifier flow
 
 All diagrams are written in [Mermaid](https://mermaid.js.org/) syntax and render directly in GitHub, VS Code, and most modern Markdown viewers.
 
@@ -53,10 +53,10 @@ All diagrams are written in [Mermaid](https://mermaid.js.org/) syntax and render
 - [Component Architecture](./ARCHITECTURE.md#component-architecture)
 - [Data Flow Diagrams](./ARCHITECTURE.md#data-flow)
 - [Deployment Architecture](./ARCHITECTURE.md#deployment-architecture)
-- [Bill Lifecycle Diagrams](./diagrams/bill-lifecycle.md) - Legislative state machines
-- [API Flow Diagrams](./diagrams/api-flows.md) - Request/response sequences
-- [Frontend Diagrams](./diagrams/frontend-architecture.md) - Component architecture
-- [State Governance Diagrams](./diagrams/state-governance.md) - Map/list interaction and verification
+- [Bill Lifecycle Diagrams](./DIAGRAM_BILL_LIFECYCLE.md) - Legislative state machines
+- [API Flow Diagrams](./DIAGRAM_API_FLOWS.md) - Request/response sequences
+- [Frontend Diagrams](./DIAGRAM_FRONTEND_ARCHITECTURE.md) - Component architecture
+- [State Governance Diagrams](./DIAGRAM_STATE_GOVERNANCE.md) - Map/list interaction and verification
 
 ## Project Overview
 
