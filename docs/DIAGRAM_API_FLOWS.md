@@ -82,7 +82,7 @@ sequenceDiagram
     participant API as API Handler
     participant SourceText as Source Text Service
     participant AICache as AI Analysis Cache
-    participant AI as AI Provider (Groq/NVIDIA)
+    participant AI as Gemma 4 (Gemini API)
     participant DB as PostgreSQL
 
     Client->>API: GET /api/bills/{id}/ai-analysis

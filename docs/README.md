@@ -67,7 +67,7 @@ All diagrams are written in [Mermaid](https://mermaid.js.org/) syntax and render
 - Houses tab with PM-term-specific Lok Sabha power charts
 - States tab with India governance map, synchronized accessible list, methodology route, and verified source links
 - Prime Minister profile panel with source links
-- Bill list, bill detail, local fallback analysis, and optional Groq/NVIDIA AI analysis cached in PostgreSQL
+- Bill list, bill detail, local fallback analysis, and Gemma 4 AI analysis cached in PostgreSQL
 - Persisted Debate and DebateTranscript models for Neon-backed debate metadata and future transcript extraction
 - Source badges on records for auditability
 - English/Hindi shell labels and bill title support
@@ -77,7 +77,7 @@ All diagrams are written in [Mermaid](https://mermaid.js.org/) syntax and render
 - **Frontend**: React 19 + Vite + Tailwind CSS
 - **Backend**: Node.js HTTP server
 - **Database**: PostgreSQL with Prisma ORM
-- **AI**: Groq / NVIDIA for bill analysis
+- **AI**: Gemma 4 (`gemma-4-31b-it`) via the Gemini API for bill analysis
 
 ### Data Coverage
 

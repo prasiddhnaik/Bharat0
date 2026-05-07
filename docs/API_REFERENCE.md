@@ -346,14 +346,14 @@ GET /api/bills/{billId}/ai-analysis?lang={lang}&provider={provider}
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `lang` | string | No | Language: `en` (default), `hi` |
-| `provider` | string | No | AI provider: `groq` (default), `nvidia` |
+| `provider` | string | No | AI provider: `gemma` (only supported provider) |
 
 **Response (200 OK)**
 
 ```json
 {
-  "provider": "groq",
-  "model": "llama-3.3-70b-versatile",
+  "provider": "gemma",
+  "model": "gemma-4-31b-it",
   "analysis": {
     "summary": "...",
     "keyPoints": [...],

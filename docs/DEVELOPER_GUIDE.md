@@ -68,12 +68,10 @@ npm run verify:db
 | `DATABASE_URL` | Yes | PostgreSQL connection string | `postgresql://user:pass@host/db?sslmode=require` |
 | `HOST` | No | Server bind address | `127.0.0.1` |
 | `PORT` | No | Server port | `5173` |
-| `GROQ_API_KEY` | No | Groq AI API key | `gsk_...` |
-| `GROQ_MODEL` | No | Groq model | `llama-3.3-70b-versatile` |
-| `NVIDIA_API_KEY` | No | NVIDIA API key | `nvapi-...` |
-| `NVIDIA_BASE_URL` | No | NVIDIA API base | `https://integrate.api.nvidia.com/v1` |
-| `NVIDIA_MODEL` | No | NVIDIA model | `meta/llama-3.3-70b-instruct` |
-| `AI_ANALYSIS_PROVIDER` | No | Default AI provider | `groq` |
+| `GEMMA_API_KEY` | No | Gemma 4 / Gemini API key (alias: `GEMINI_API_KEY`) | `AIza...` |
+| `GEMMA_MODEL` | No | Gemma model | `gemma-4-31b-it` |
+| `GEMMA_BASE_URL` | No | Gemini OpenAI-compatible endpoint | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| `AI_ANALYSIS_PROVIDER` | No | AI provider (only `gemma` supported) | `gemma` |
 
 ---
 
@@ -188,7 +186,7 @@ bharatzero/
 │       │   │   ├── legislative.ts
 │       │   │   └── prisma-mappers.ts
 │       │   ├── ai/
-│       │   │   ├── groq-bill-analysis.ts
+│       │   │   ├── gemma-bill-analysis.ts
 │       │   │   ├── persistent-analysis-cache.ts
 │       │   │   └── source-text.ts
 │       │   ├── db/
@@ -565,7 +563,7 @@ dist
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/bharatzero"
 HOST="127.0.0.1"
 PORT="5173"
-GROQ_API_KEY=""  # Optional for dev
+GEMMA_API_KEY=""  # Optional for dev — without it, AI analysis falls back to local heuristics
 ```
 
 #### Production
@@ -574,8 +572,10 @@ GROQ_API_KEY=""  # Optional for dev
 DATABASE_URL="postgresql://...neon.tech/..."
 HOST="0.0.0.0"
 PORT="5174"
-GROQ_API_KEY="gsk_..."
-AI_ANALYSIS_PROVIDER="groq"
+GEMMA_API_KEY="AIza..."
+GEMMA_MODEL="gemma-4-31b-it"
+GEMMA_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai"
+AI_ANALYSIS_PROVIDER="gemma"
 ```
 
 ---
@@ -631,9 +631,9 @@ npm run check
 #### AI Analysis Not Working
 
 **Check:**
-1. `GROQ_API_KEY` or `NVIDIA_API_KEY` is set
-2. Provider is configured: `AI_ANALYSIS_PROVIDER=groq`
-3. API key has available quota
+1. `GEMMA_API_KEY` (or alias `GEMINI_API_KEY`) is set
+2. Provider is configured: `AI_ANALYSIS_PROVIDER=gemma`
+3. API key has available quota on Google AI Studio
 
 **Test:**
 ```bash

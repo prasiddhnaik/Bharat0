@@ -393,7 +393,7 @@ AI-generated bill analysis cache.
 | `id` | String | Primary Key, Default: cuid() | Unique identifier |
 | `bill_id` | String | Foreign Key | Reference to analyzed bill |
 | `language` | String | Required | Analysis language (en, hi) |
-| `provider` | String | Default: "groq" | AI provider |
+| `provider` | String | Default: "gemma" | AI provider |
 | `model` | String | Required | Model identifier |
 | `input_hash` | String | Required | Input content hash |
 | `analysis` | Json | Required | Analysis result (JSON) |
@@ -726,8 +726,8 @@ const analysis = await prisma.aiBillAnalysis.findUnique({
     bill_id_language_provider_model_input_hash: {
       bill_id: 'bill-123',
       language: 'en',
-      provider: 'groq',
-      model: 'llama-3.3-70b-versatile',
+      provider: 'gemma',
+      model: 'gemma-4-31b-it',
       input_hash: 'abc123...'
     }
   }

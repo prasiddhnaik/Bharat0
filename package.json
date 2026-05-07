@@ -34,6 +34,7 @@
 		"db:upsert:all": "npm run db:upsert:prs && npm run db:upsert:pdl-pre2004 && npm run db:upsert:data-gov && npm run db:upsert:debates && npm run db:upsert:pm",
 		"db:upsert:all:dry-run": "npm run db:upsert:prs -- --dry-run && npm run db:upsert:pdl-pre2004 -- --dry-run && npm run db:upsert:data-gov -- --dry-run && npm run db:upsert:debates -- --dry-run && npm run db:upsert:pm -- --dry-run",
 		"db:setup": "npm run db:generate && npm run db:push && npm run db:seed && npm run verify:db",
+		"sync:live-bills": "tsx scripts/sync-live-bills.ts",
 		"sync:pdl-pre2004": "tsx scripts/sync-pdl-pre2004-legislation.ts",
 		"sync:prs": "tsx scripts/sync-prs-legislation.ts",
 		"sync:sansad": "tsx scripts/sync-sansad-legislation.ts",

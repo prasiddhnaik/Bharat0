@@ -12,15 +12,11 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: NVIDIA_API_KEY
+      - key: GEMMA_API_KEY
         sync: false
       - key: AI_ANALYSIS_PROVIDER
-        value: groq
-      - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
-      - key: NVIDIA_BASE_URL
-        value: https://integrate.api.nvidia.com/v1
-      - key: NVIDIA_MODEL
-        value: meta/llama-3.3-70b-instruct
+        value: gemma
+      - key: GEMMA_MODEL
+        value: gemma-4-31b-it
+      - key: GEMMA_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai

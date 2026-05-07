@@ -48,8 +48,7 @@ graph TB
     end
 
     subgraph "AI Services"
-        Groq[Groq AI]
-        NVIDIA[NVIDIA AI]
+        Gemma[Gemma 4 via Gemini API]
     end
 
     Browser --> React
@@ -67,8 +66,7 @@ graph TB
     Repository -.sync.-> PRS
     Repository -.sync.-> PDL
     Repository -.sync.-> DataGov
-    APIHandler -.analysis.-> Groq
-    APIHandler -.analysis.-> NVIDIA
+    APIHandler -.analysis.-> Gemma
 ```
 
 ## Component Architecture
@@ -133,7 +131,7 @@ src/lib/server/
 │   ├── legislative.ts        # Repository pattern implementation
 │   └── prisma-mappers.ts     # Domain/Prisma type conversion
 ├── ai/
-│   ├── groq-bill-analysis.ts # AI analysis provider
+│   ├── gemma-bill-analysis.ts # AI analysis provider (Gemma 4)
 │   ├── persistent-analysis-cache.ts
 │   └── source-text.ts        # Source text extraction
 └── db/
@@ -552,7 +550,7 @@ npm run verify:data-pipeline → Full pipeline test
 | Styling | Tailwind CSS | 4.x |
 | ORM | Prisma | 7.x |
 | Database | PostgreSQL | 15+ |
-| AI | Groq/NVIDIA | Latest |
+| AI | Gemma 4 (via Gemini API) | gemma-4-31b-it |
 | Language | TypeScript | 6.x |
 
 ---
