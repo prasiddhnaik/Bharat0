@@ -17,8 +17,8 @@ const flags = parseFlags(['dry-run', 'force-mirror']);
 assertEnv(['DATABASE_URL'], log);
 
 const CUTOFF_DATE = '2026-04-16';
-const SANSAD_BILLS_API =
-	'https://sansad.in/api_rs/legislation/getBills?loksabha=&sessionNo=&billName=&house=&ministryName=&billType=&billCategory=&billStatus=&introductionDateFrom=&introductionDateTo=&passedInLsDateFrom=&passedInLsDateTo=&passedInRsDateFrom=&passedInRsDateTo=&page=0&size=2000&locale=en&sortOn=billIntroducedDate&sortBy=desc';
+const SANSAD_BILLS_API_BASE = 'https://sansad.in/api_rs/legislation/getBills';
+const SANSAD_MAX_PAGES = 30;
 const FALLBACK_BILLS_DATASET = 'https://righttoinformation.wiki/static/data/bills.json';
 
 type SansadBillRecord = {
@@ -49,6 +49,7 @@ type SansadBillRecord = {
 
 type SansadPayload = {
 	meta?: { as_of?: string };
+	_metadata?: { currentPageNumber?: number; perPageSize?: number; totalElements?: number; totalPages?: number };
 	bills?: SansadBillRecord[];
 	records?: SansadBillRecord[];
 };
@@ -233,20 +234,36 @@ async function fetchJson(url: string): Promise<SansadPayload> {
 	return response.json() as Promise<SansadPayload>;
 }
 
-async function loadPayload(): Promise<{ payload: SansadPayload; sourceUrl: string }> {
+async function fetchSansadPaginated(): Promise<SansadBillRecord[]> {
+	const aggregated: SansadBillRecord[] = [];
+	for (let pageNo = 0; pageNo < SANSAD_MAX_PAGES; pageNo += 1) {
+		const url = `${SANSAD_BILLS_API_BASE}?pageNo=${pageNo}&pageSize=10&locale=en&sortOn=billIntroducedDate&sortBy=desc`;
+		const payload = await fetchJson(url);
+		const pageRecords = payload.records ?? payload.bills ?? [];
+		if (!pageRecords.length) break;
+		aggregated.push(...pageRecords);
+		const oldestOnPage = pageRecords
+			.map((r) => toIsoDate(r.billIntroducedDate))
+			.filter((d): d is string => Boolean(d))
+			.sort()[0];
+		if (oldestOnPage && oldestOnPage < CUTOFF_DATE) break;
+	}
+	return aggregated;
+}
+
+async function loadPayload(): Promise<{ records: SansadBillRecord[]; sourceUrl: string }> {
 	if (flags['force-mirror']) {
 		const payload = await fetchJson(FALLBACK_BILLS_DATASET);
-		return { payload, sourceUrl: FALLBACK_BILLS_DATASET };
+		return { records: payload.records ?? payload.bills ?? [], sourceUrl: FALLBACK_BILLS_DATASET };
 	}
 	try {
-		const payload = await fetchJson(SANSAD_BILLS_API);
-		const records = payload.records ?? payload.bills ?? [];
-		if (records.length) return { payload, sourceUrl: SANSAD_BILLS_API };
+		const records = await fetchSansadPaginated();
+		if (records.length) return { records, sourceUrl: `${SANSAD_BILLS_API_BASE} (paginated)` };
 		throw new Error('Sansad API returned no records');
 	} catch (error) {
 		log.warn(`Sansad API unavailable (${String(error)}); falling back to mirror.`);
 		const payload = await fetchJson(FALLBACK_BILLS_DATASET);
-		return { payload, sourceUrl: FALLBACK_BILLS_DATASET };
+		return { records: payload.records ?? payload.bills ?? [], sourceUrl: FALLBACK_BILLS_DATASET };
 	}
 }
 
@@ -254,8 +271,7 @@ const toPrismaEnum = (value: string) => value.replaceAll('-', '_').toUpperCase()
 const toDate = (value: string) => new Date(`${value}T00:00:00+05:30`);
 
 async function main() {
-	const { payload, sourceUrl } = await loadPayload();
-	const allRecords = payload.records ?? payload.bills ?? [];
+	const { records: allRecords, sourceUrl } = await loadPayload();
 	const filtered = allRecords.filter((r) => {
 		const introduced = toIsoDate(r.billIntroducedDate);
 		return introduced !== null && introduced >= CUTOFF_DATE;

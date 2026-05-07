@@ -1257,7 +1257,6 @@ function LeftSidebar({
 	const sidebarRef = useRef<HTMLElement | null>(null);
 	const totalBills = dashboard.stats.billsTracked || dashboard.allBills.length || dashboard.bills.length;
 	const totalSources = dashboard.sources.length || dashboard.stats.preparedSources;
-	const totalCommittees = dashboard.stats.committeesTracked || dashboard.committees.length;
 	const selectedPrimeMinister = getPrimeMinisterTerm(dashboard.filters.primeMinister) ?? PRIME_MINISTER_TERMS[0];
 	const selectedTermRange = `${yearFromDate(selectedPrimeMinister.startDate)}-${selectedPrimeMinister.endDate ? yearFromDate(selectedPrimeMinister.endDate) : 'present'}`;
 	const primeMinisterCountById = new Map((dashboard.primeMinisterCounts ?? []).map((item) => [item.id, item.count]));
@@ -1446,16 +1445,6 @@ function LeftSidebar({
 					<div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-2">
 						<p className="text-[9px] font-bold uppercase tracking-[0.05em] text-[var(--bz-text-3)]">Rajya Sabha</p>
 						<p className="mt-1 text-xs font-semibold text-[var(--bz-text-1)]">245 seats</p>
-					</div>
-				</div>
-				<div className="mt-3 rounded-md border border-[var(--bz-border)] bg-[var(--bz-bg)] p-2">
-					<div className="flex items-center justify-between text-[11px]">
-						<span className="text-[var(--bz-text-2)]">Bills in this set</span>
-						<span className="bz-mono font-semibold text-[var(--bz-text-1)]">{dashboard.bills.length.toLocaleString('en-IN')}</span>
-					</div>
-					<div className="mt-1 flex items-center justify-between text-[11px]">
-						<span className="text-[var(--bz-text-2)]">Committee surfaces</span>
-						<span className="bz-mono font-semibold text-[var(--bz-text-1)]">{totalCommittees.toLocaleString('en-IN')}</span>
 					</div>
 				</div>
 			</div>
