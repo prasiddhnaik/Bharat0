@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bharatzero-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bharatzero
+      POSTGRES_USER: bharatzero
+      POSTGRES_PASSWORD: bharatzero
+    ports:
+      - "5432:5432"
+    volumes:
+      - bharatzero-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bharatzero -d bharatzero"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  bharatzero-postgres-data:
