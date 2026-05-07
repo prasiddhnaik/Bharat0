@@ -391,6 +391,12 @@ function MainContent({
 }) {
 	const { filters } = dashboard;
 	const sessionName = dashboard.sittingDays[0]?.session_name ?? 'Parliament sitting';
+	const latestActivityDate = useMemo(() => {
+		const dates = (dashboard.bills ?? [])
+			.flatMap((bill) => [bill.latest_action_date, bill.introduced_on])
+			.filter((d): d is string => Boolean(d));
+		return dates.length ? dates.sort().at(-1) ?? null : null;
+	}, [dashboard.bills]);
 	const sourceStatusLabels = {
 		'using-now': 'Using now',
 		'discovery-ready': 'Discovery wired',
@@ -408,6 +414,7 @@ function MainContent({
 	return (
 		<>
 			{filters.section !== 'states' && <FilterBar filters={filters} sessionName={sessionName} stageCounts={dashboard.stageCounts ?? []} areaCounts={dashboard.areaCounts ?? []} />}
+			{filters.section !== 'states' && <ParliamentSessionBanner latestActivityDate={latestActivityDate} />}
 			{filters.section !== 'states' && <LoadTimeNotice />}
 
 			{filters.section === 'overview' && (
@@ -1118,6 +1125,19 @@ function LoadTimeNotice() {
 	return (
 		<div className="mb-4 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] px-3 py-2 text-xs leading-5 text-[var(--bz-text-2)]">
 			<span className="font-semibold text-[var(--bz-text-1)]">Loading note:</span> Some sections pull thousands of records from the database, so it may take a second to load everything.
+		</div>
+	);
+}
+
+function ParliamentSessionBanner({ latestActivityDate }: { latestActivityDate: string | null }) {
+	if (!latestActivityDate) return null;
+	const today = new Date();
+	const latest = new Date(`${latestActivityDate}T00:00:00`);
+	const daysSince = Math.floor((today.getTime() - latest.getTime()) / 86_400_000);
+	if (daysSince < 14) return null;
+	return (
+		<div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
+			<span className="font-semibold">Parliament is currently in recess.</span> No bills have been introduced or moved since {formatDate(latestActivityDate)} ({daysSince} days ago). New activity will appear here when sittings resume.
 		</div>
 	);
 }
