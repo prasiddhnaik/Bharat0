@@ -464,7 +464,7 @@ function MainContent({
 	return (
 		<>
 			{filters.section !== 'states' && <FilterBar filters={filters} sessionName={sessionName} stageCounts={dashboard.stageCounts ?? []} areaCounts={dashboard.areaCounts ?? []} />}
-			{filters.section !== 'states' && <ParliamentSessionBanner latestActivityDate={latestActivityDate} />}
+			{filters.section === 'bills' && <ParliamentSessionBanner latestActivityDate={latestActivityDate} />}
 			{filters.section !== 'states' && <LoadTimeNotice />}
 
 			{filters.section === 'overview' && (
