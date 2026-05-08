@@ -1102,8 +1102,15 @@ function AppShell({
 
 function SectionTabs({ active, filters, language }: { active: SectionId; filters: DashboardFilters; language: Language }) {
 	const fixedSections: SectionId[] = ['houses', 'states', 'timeline'];
-	const primarySections: SectionId[] = ['bills', 'committees'];
-	const secondarySections = SECTION_IDS.filter((section) => section !== 'overview' && !fixedSections.includes(section) && !primarySections.includes(section));
+	const primarySections: SectionId[] = ['bills'];
+	const hiddenSections: SectionId[] = ['committees'];
+	const secondarySections = SECTION_IDS.filter(
+		(section) =>
+			section !== 'overview' &&
+			!fixedSections.includes(section) &&
+			!primarySections.includes(section) &&
+			!hiddenSections.includes(section)
+	);
 	const linkClass = (section: SectionId) =>
 		cx(
 			'relative z-20 grid h-9 min-w-[4.7rem] shrink-0 select-none place-items-center whitespace-nowrap rounded-md border border-transparent px-2 text-[11px] font-medium leading-none transition bz-focus sm:h-10 sm:min-w-[5.75rem] sm:px-3 sm:text-xs',
