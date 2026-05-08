@@ -6,6 +6,7 @@ import type {
 	BillType,
 	Committee,
 	Debate,
+	DebateTranscriptStatus,
 	House,
 	Question,
 	SittingDay,
@@ -201,6 +202,12 @@ type PrismaQuestion = {
 	is_demo_seed: boolean;
 };
 
+type PrismaDebateTranscriptRelation = {
+	status: string;
+	char_count: number;
+	text_hash: string | null;
+};
+
 type PrismaDebate = {
 	id: string;
 	house: string;
@@ -218,7 +225,15 @@ type PrismaDebate = {
 	debate_type: string | null;
 	related_bill_id: string | null;
 	is_demo_seed: boolean;
+	transcript?: PrismaDebateTranscriptRelation | null;
 };
+
+const debateTranscriptStatusFromPrisma = {
+	METADATA_ONLY: 'metadata_only',
+	EXTRACTED: 'extracted',
+	FAILED: 'failed',
+	STALE: 'stale'
+} as const satisfies Record<string, DebateTranscriptStatus>;
 
 type PrismaAct = {
 	id: string;
@@ -353,6 +368,8 @@ export function toDomainQuestion(row: PrismaQuestion): Question {
 }
 
 export function toDomainDebate(row: PrismaDebate): Debate {
+	const transcript = row.transcript ?? null;
+	const transcriptStatus = transcript ? mapEnum(debateTranscriptStatusFromPrisma, transcript.status, 'DebateTranscriptStatus') : undefined;
 	return {
 		id: row.id,
 		house: toDomainHouse(row.house),
@@ -364,6 +381,9 @@ export function toDomainDebate(row: PrismaDebate): Debate {
 		...(row.transcript_pages !== null ? { transcript_pages: row.transcript_pages } : {}),
 		...(row.transcript_byte_length !== null ? { transcript_byte_length: row.transcript_byte_length } : {}),
 		...(row.transcript_language ? { transcript_language: row.transcript_language } : {}),
+		...(transcriptStatus ? { transcript_status: transcriptStatus } : {}),
+		...(transcript && transcript.char_count > 0 ? { transcript_char_count: transcript.char_count } : {}),
+		...(transcript?.text_hash ? { transcript_text_hash: transcript.text_hash } : {}),
 		members: row.members,
 		...(row.lok_sabha_number ? { lok_sabha_number: row.lok_sabha_number } : {}),
 		...(row.session_number ? { session_number: row.session_number } : {}),

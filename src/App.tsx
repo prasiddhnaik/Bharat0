@@ -24,6 +24,7 @@ import {
 	type BillAction,
 	type BillStage,
 	type Debate,
+	type DebateAiSummaryPayload,
 	type House,
 	type Question,
 	type SectionId,
@@ -276,6 +277,9 @@ function App() {
 	const [aiAnalysisByKey, setAiAnalysisByKey] = useState<Record<string, BillAnalysis>>({});
 	const [aiAnalysisLoadingKey, setAiAnalysisLoadingKey] = useState<string | null>(null);
 	const [aiAnalysisFailedKeys, setAiAnalysisFailedKeys] = useState<Record<string, true>>({});
+	const [aiDebateSummaryByKey, setAiDebateSummaryByKey] = useState<Record<string, DebateAiSummaryPayload>>({});
+	const [aiDebateSummaryLoadingKey, setAiDebateSummaryLoadingKey] = useState<string | null>(null);
+	const [aiDebateSummaryFailedKeys, setAiDebateSummaryFailedKeys] = useState<Record<string, true>>({});
 	const localSelectedAnalysis = useMemo(
 		() => (selectedBillForRender ? buildBillAnalysis(selectedBillForRender.bill, selectedBillForRender.actions, dashboard.filters.language) : null),
 		[selectedBillForRender, dashboard.filters.language]
@@ -345,6 +349,52 @@ function App() {
 		};
 	}, [selectedBillForRender, selectedAnalysisKey, dashboard.filters.language, hasAiAnalysis, hasAiAnalysisFailed]);
 
+	const debateLanguage = dashboard.filters.language;
+	const selectedDebateSummaryKey = selectedDebate ? `${selectedDebate.id}:${debateLanguage}` : null;
+	const debateAiSummaryPayload = selectedDebateSummaryKey ? aiDebateSummaryByKey[selectedDebateSummaryKey] ?? null : null;
+	const debateAiSummaryStatus: DebateAiSummaryStatus = !selectedDebate || selectedDebate.transcript_status !== 'extracted'
+		? 'idle'
+		: debateAiSummaryPayload
+			? 'ready'
+			: aiDebateSummaryLoadingKey === selectedDebateSummaryKey
+				? 'loading'
+				: selectedDebateSummaryKey && aiDebateSummaryFailedKeys[selectedDebateSummaryKey]
+					? 'failed'
+					: 'idle';
+
+	useEffect(() => {
+		if (!selectedDebate || selectedDebate.transcript_status !== 'extracted' || !selectedDebateSummaryKey) return;
+		if (aiDebateSummaryByKey[selectedDebateSummaryKey] || aiDebateSummaryFailedKeys[selectedDebateSummaryKey]) return;
+
+		const debateId = selectedDebate.id;
+		const summaryKey = selectedDebateSummaryKey;
+		const controller = new AbortController();
+
+		async function loadAiDebateSummary() {
+			setAiDebateSummaryLoadingKey(summaryKey);
+			try {
+				const payload = await requestAiDebateSummary(debateId, debateLanguage, summaryKey, controller.signal);
+				if (!controller.signal.aborted) {
+					setAiDebateSummaryByKey((current) => ({ ...current, [summaryKey]: payload }));
+				}
+			} catch (error) {
+				if (!controller.signal.aborted) {
+					console.warn('AI debate summary unavailable.', error);
+					setAiDebateSummaryFailedKeys((current) => ({ ...current, [summaryKey]: true }));
+				}
+			} finally {
+				if (!controller.signal.aborted) {
+					setAiDebateSummaryLoadingKey((current) => (current === summaryKey ? null : current));
+				}
+			}
+		}
+
+		void loadAiDebateSummary();
+		return () => {
+			controller.abort();
+		};
+	}, [selectedDebate, selectedDebateSummaryKey, debateLanguage, aiDebateSummaryByKey, aiDebateSummaryFailedKeys]);
+
 	return (
 		<AppShell
 			section={shellSection}
@@ -357,7 +407,7 @@ function App() {
 				) : dashboard.filters.section === 'bills' ? (
 					<BillDetailPanel bill={selectedBillForRender?.bill ?? null} actions={selectedBillForRender?.actions ?? []} filters={dashboard.filters} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
 				) : dashboard.filters.section === 'debates' ? (
-					<DebateDetailPanel debate={selectedDebate} filters={dashboard.filters} onNavigate={navigateInApp} />
+					<DebateDetailPanel debate={selectedDebate} filters={dashboard.filters} onNavigate={navigateInApp} aiSummary={debateAiSummaryPayload} aiSummaryStatus={debateAiSummaryStatus} />
 				) : null
 			}
 		>
@@ -1928,6 +1978,30 @@ function requestAiBillAnalysis(billId: string, language: Language, analysisKey: 
 	return request;
 }
 
+type DebateAiSummaryStatus = 'idle' | 'loading' | 'ready' | 'failed';
+
+const aiDebateSummaryClientRequests = new Map<string, Promise<DebateAiSummaryPayload>>();
+
+function requestAiDebateSummary(debateId: string, language: Language, summaryKey: string, signal?: AbortSignal) {
+	const existing = aiDebateSummaryClientRequests.get(summaryKey);
+	if (existing) return existing;
+
+	const request = fetch(`/api/debates/${encodeURIComponent(debateId)}/ai-summary?lang=${language}`, { signal })
+		.then(async (response) => {
+			if (!response.ok) {
+				throw new Error(`AI debate summary request failed with HTTP ${response.status}.`);
+			}
+			return (await response.json()) as DebateAiSummaryPayload;
+		})
+		.catch((error) => {
+			aiDebateSummaryClientRequests.delete(summaryKey);
+			throw error;
+		});
+
+	aiDebateSummaryClientRequests.set(summaryKey, request);
+	return request;
+}
+
 function BillAnalysisPanel({
 	bill,
 	actions = [],
@@ -2381,7 +2455,166 @@ function uniqueDebateMembers(debate: Debate) {
 	return Array.from(new Set(debate.members));
 }
 
-function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | null; filters: DashboardFilters; onNavigate: NavigateHandler }) {
+function DebateAiSummaryBlock({
+	debate,
+	payload,
+	status
+}: {
+	debate: Debate;
+	payload: DebateAiSummaryPayload | null;
+	status: DebateAiSummaryStatus;
+}) {
+	const transcriptStatus = debate.transcript_status;
+	const cardClass = 'mt-4 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3';
+
+	if (transcriptStatus === 'metadata_only' || !transcriptStatus) {
+		return (
+			<div className={cardClass}>
+				<header className="flex items-center justify-between gap-2">
+					<p className="bz-eyebrow text-[0.55rem] text-[var(--bz-accent)]">AI summary</p>
+					<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--bz-text-3)]">Transcript pending</span>
+				</header>
+				<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+					Transcript text has not been extracted for this proceeding yet, so the AI summary is unavailable. Open the official transcript to read the full record.
+				</p>
+			</div>
+		);
+	}
+
+	if (transcriptStatus === 'failed' || transcriptStatus === 'stale') {
+		return (
+			<div className={cardClass}>
+				<header className="flex items-center justify-between gap-2">
+					<p className="bz-eyebrow text-[0.55rem] text-[var(--bz-accent)]">AI summary</p>
+					<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--bz-text-3)]">{transcriptStatus === 'stale' ? 'Transcript stale' : 'Extraction failed'}</span>
+				</header>
+				<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+					{transcriptStatus === 'stale'
+						? 'Stored transcript text is older than the current source; the AI summary has been suppressed until the transcript is re-extracted.'
+						: 'Transcript extraction failed for this proceeding; the AI summary cannot be produced from text. The curated summary above is the best available record.'}
+				</p>
+			</div>
+		);
+	}
+
+	if (status === 'loading' || status === 'idle') {
+		return (
+			<div className={cardClass}>
+				<header className="flex items-center justify-between gap-2">
+					<p className="bz-eyebrow text-[0.55rem] text-[var(--bz-accent)]">AI summary</p>
+					<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--bz-text-3)]">Generating</span>
+				</header>
+				<div className="mt-3 space-y-2">
+					<div className="h-3 w-3/4 rounded bg-[var(--bz-surface-2)]" />
+					<div className="h-3 w-full rounded bg-[var(--bz-surface-2)]" />
+					<div className="h-3 w-5/6 rounded bg-[var(--bz-surface-2)]" />
+				</div>
+			</div>
+		);
+	}
+
+	if (status === 'failed' || !payload) {
+		return (
+			<div className={cardClass}>
+				<header className="flex items-center justify-between gap-2">
+					<p className="bz-eyebrow text-[0.55rem] text-[var(--bz-accent)]">AI summary</p>
+					<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--bz-text-3)]">Unavailable</span>
+				</header>
+				<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+					AI summary could not be generated for this proceeding. Use the curated summary and the official transcript link above.
+				</p>
+			</div>
+		);
+	}
+
+	const { summary, coverage } = payload;
+	const isPartial = coverage.strategy === 'head-tail-truncated';
+	return (
+		<div className={cardClass}>
+			<header className="flex items-center justify-between gap-2">
+				<p className="bz-eyebrow text-[0.55rem] text-[var(--bz-accent)]">AI summary</p>
+				<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--bz-text-3)]">
+					{isPartial ? 'Partial coverage' : 'Full transcript'}
+				</span>
+			</header>
+			<p className="mt-3 text-[13px] leading-6 text-[var(--bz-text-1)]">{summary.gist}</p>
+			{isPartial && (
+				<p className="mt-2 rounded border border-dashed border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1 text-[11px] leading-4 text-[var(--bz-text-3)]">
+					Transcript was head-tail truncated; {coverage.omittedChars.toLocaleString('en-IN')} characters from the middle were not analyzed.
+				</p>
+			)}
+			{summary.keyPoints.length > 0 && (
+				<div className="mt-3">
+					<p className="bz-eyebrow text-[0.55rem]">Key points</p>
+					<ul className="mt-2 space-y-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+						{summary.keyPoints.map((point) => (
+							<li className="flex gap-2" key={point}>
+								<span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--bz-accent)]" />
+								<span>{point}</span>
+							</li>
+						))}
+					</ul>
+				</div>
+			)}
+			{summary.keySpeakers.length > 0 && (
+				<div className="mt-3">
+					<p className="bz-eyebrow text-[0.55rem]">Key speakers</p>
+					<ul className="mt-2 space-y-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+						{summary.keySpeakers.map((speaker) => (
+							<li key={`${speaker.name}-${speaker.contribution.slice(0, 24)}`}>
+								<span className="font-semibold text-[var(--bz-text-1)]">{speaker.name}</span>
+								{speaker.role && <span className="text-[var(--bz-text-3)]"> · {speaker.role}</span>}
+								<span className="block text-[var(--bz-text-2)]">{speaker.contribution}</span>
+							</li>
+						))}
+					</ul>
+				</div>
+			)}
+			{summary.decisions && (
+				<div className="mt-3">
+					<p className="bz-eyebrow text-[0.55rem]">Decisions</p>
+					<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{summary.decisions}</p>
+				</div>
+			)}
+			{summary.notableQuotes.length > 0 && (
+				<div className="mt-3">
+					<p className="bz-eyebrow text-[0.55rem]">Notable quotes</p>
+					<ul className="mt-2 space-y-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">
+						{summary.notableQuotes.map((quote) => (
+							<li key={`${quote.speaker}-${quote.quote.slice(0, 24)}`}>
+								<span className="block italic">“{quote.quote}”</span>
+								<span className="block text-[11px] text-[var(--bz-text-3)]">— {quote.speaker}</span>
+							</li>
+						))}
+					</ul>
+				</div>
+			)}
+			{summary.relatedBillContext && (
+				<div className="mt-3">
+					<p className="bz-eyebrow text-[0.55rem]">Related Bill context</p>
+					<p className="mt-2 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{summary.relatedBillContext}</p>
+				</div>
+			)}
+			<p className="mt-3 border-t border-[var(--bz-border)] pt-2 text-[11px] leading-4 text-[var(--bz-text-3)]">
+				{summary.dataQuality}
+			</p>
+		</div>
+	);
+}
+
+function DebateDetailPanel({
+	debate,
+	filters,
+	onNavigate,
+	aiSummary,
+	aiSummaryStatus
+}: {
+	debate: Debate | null;
+	filters: DashboardFilters;
+	onNavigate: NavigateHandler;
+	aiSummary: DebateAiSummaryPayload | null;
+	aiSummaryStatus: DebateAiSummaryStatus;
+}) {
 	if (!debate) {
 		return (
 			<aside className="min-h-full overflow-hidden bg-[var(--bz-surface)] text-[var(--bz-text-1)]">
@@ -2420,6 +2653,8 @@ function DebateDetailPanel({ debate, filters, onNavigate }: { debate: Debate | n
 					<p className="mt-2 text-[13px] leading-6 text-[var(--bz-text-1)]">{debate.summary}</p>
 					<p className="mt-3 text-[12.5px] leading-5 text-[var(--bz-text-2)]">{detailProfile.proceduralRead}</p>
 				</div>
+
+				<DebateAiSummaryBlock debate={debate} payload={aiSummary} status={aiSummaryStatus} />
 
 				<dl className="mt-5 grid grid-cols-2 gap-2 text-xs">
 					<DetailTerm label="House" value={houseLabelsLocalized[filters.language][debate.house]} />

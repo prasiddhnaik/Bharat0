@@ -4,10 +4,14 @@ import { getLokSabhaPowerSnapshotForPrimeMinister, lokSabhaPowerSnapshots } from
 import { getPrimeMinisterProfile, primeMinisterProfiles } from '$lib/domain/prime-minister-profiles';
 import { getPrimeMinisterTerm, PRIME_MINISTER_TERMS } from '$lib/domain/prime-ministers';
 import { groupTimelineEventsByDate } from '$lib/domain/timeline-view';
-import { analyzeBillWithConfiguredProvider, getAiAnalysisProvider, getBillAnalysisInputHash, getBillAnalysisModel } from '$lib/server/ai/gemma-bill-analysis';
+import type { Debate, DebateAiSummaryPayload, DebateTranscriptStatus } from '$lib/domain/types';
+import { analyzeBillWithConfiguredProvider, getBillAnalysisInputHash, getBillAnalysisModel } from '$lib/server/ai/gemma-bill-analysis';
+import { getAiAnalysisProvider } from '$lib/server/ai/gemma-client';
+import { getOrGenerateDebateSummary, type DebateTranscriptInput } from '$lib/server/ai/gemma-debate-analysis';
 import { persistBillAnalysis, readPersistedBillAnalysis } from '$lib/server/ai/persistent-analysis-cache';
 import { getBillSourceTextForAnalysis, getBillSourceTextMetadata } from '$lib/server/ai/source-text';
 import { createPrismaClient } from '$lib/server/db/prisma';
+import { toDomainDebate } from '$lib/server/repositories/prisma-mappers';
 import { createLegislativeRepository, type LegislativeRepository } from '$lib/server/repositories/legislative';
 
 let repository: LegislativeRepository | null = null;
@@ -20,10 +24,19 @@ const globalCacheScope = globalThis as typeof globalThis & {
 	__bharatZeroDashboardCache?: Map<string, DashboardCacheEntry>;
 	__bharatZeroDashboardRequests?: Map<string, Promise<ReturnType<typeof shapeDashboardForClient>>>;
 	__bharatZeroBillDetailCache?: Map<string, BillDetailCacheEntry>;
+	__bharatZeroDebateSummaryRequests?: Map<string, Promise<DebateAiSummaryPayload>>;
 };
 const dashboardCache = (globalCacheScope.__bharatZeroDashboardCache ??= new Map<string, DashboardCacheEntry>());
 const dashboardRequests = (globalCacheScope.__bharatZeroDashboardRequests ??= new Map<string, Promise<ReturnType<typeof shapeDashboardForClient>>>());
 const billDetailCache = (globalCacheScope.__bharatZeroBillDetailCache ??= new Map<string, BillDetailCacheEntry>());
+const debateSummaryRequests = (globalCacheScope.__bharatZeroDebateSummaryRequests ??= new Map<string, Promise<DebateAiSummaryPayload>>());
+
+const debateTranscriptStatusFromPrisma: Record<string, DebateTranscriptStatus> = {
+	METADATA_ONLY: 'metadata_only',
+	EXTRACTED: 'extracted',
+	FAILED: 'failed',
+	STALE: 'stale'
+};
 
 function evictExpired<V extends { expiresAt: number }>(map: Map<string, V>) {
 	const now = Date.now();
@@ -202,6 +215,52 @@ async function getDashboardResponse(searchParams: URLSearchParams) {
 	return requestPromise;
 }
 
+async function loadDebateForSummary(debateId: string): Promise<{ debate: Debate; transcript: DebateTranscriptInput } | null> {
+	const row = await getPrismaClient().debate.findUnique({
+		where: { id: debateId },
+		include: { transcript: true }
+	});
+	if (!row) return null;
+
+	const debate = toDomainDebate({
+		...row,
+		transcript: row.transcript
+			? { status: row.transcript.status, char_count: row.transcript.char_count, text_hash: row.transcript.text_hash }
+			: null
+	});
+
+	const transcript: DebateTranscriptInput = row.transcript
+		? {
+				status: debateTranscriptStatusFromPrisma[row.transcript.status] ?? 'metadata_only',
+				text: row.transcript.text ?? '',
+				textHash: row.transcript.text_hash ?? null,
+				charCount: row.transcript.char_count
+			}
+		: null;
+
+	return { debate, transcript };
+}
+
+async function getDebateAiSummaryResponse(debateId: string, language: 'en' | 'hi', requestedProvider: string | null): Promise<DebateAiSummaryPayload | { notFound: true }> {
+	const cacheKey = `${debateId}:${language}:${requestedProvider ?? 'default'}`;
+	const pending = debateSummaryRequests.get(cacheKey);
+	if (pending) return pending;
+
+	const requestPromise = (async (): Promise<DebateAiSummaryPayload | { notFound: true }> => {
+		const loaded = await loadDebateForSummary(debateId);
+		if (!loaded) return { notFound: true };
+		return getOrGenerateDebateSummary(getPrismaClient(), loaded.debate, loaded.transcript, {
+			language,
+			requestedProvider
+		});
+	})().finally(() => {
+		debateSummaryRequests.delete(cacheKey);
+	});
+
+	debateSummaryRequests.set(cacheKey, requestPromise as Promise<DebateAiSummaryPayload>);
+	return requestPromise;
+}
+
 async function getBillDetailResponse(billId: string) {
 	const cached = billDetailCache.get(billId);
 	if (cached && cached.expiresAt > Date.now()) {
@@ -315,6 +374,26 @@ export async function handleBharatZeroApi(request: IncomingMessage, response: Se
 
 		if (url.pathname === '/api/sources') {
 			sendJson(response, 200, getSourceCatalogResponse());
+			return;
+		}
+
+		const debateAiSummaryMatch = url.pathname.match(/^\/api\/debates\/([^/]+)\/ai-summary$/);
+		if (debateAiSummaryMatch) {
+			try {
+				const debateId = decodeURIComponent(debateAiSummaryMatch[1]);
+				const rawLang = url.searchParams.get('lang') ?? 'en';
+				const language = rawLang === 'hi' ? 'hi' : 'en';
+				const requestedProvider = url.searchParams.get('provider');
+				const result = await getDebateAiSummaryResponse(debateId, language, requestedProvider);
+				if ('notFound' in result) {
+					sendError(response, 404, 'Debate not found.');
+					return;
+				}
+				sendJson(response, 200, result);
+			} catch (error) {
+				console.error(error);
+				sendError(response, 502, 'AI debate summary is unavailable.');
+			}
 			return;
 		}
 

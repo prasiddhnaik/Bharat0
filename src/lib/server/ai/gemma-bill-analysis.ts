@@ -1,15 +1,21 @@
 import { createHash } from 'node:crypto';
 import type { Bill, BillAction } from '$lib/domain/types';
 import { formatEconomicImpactForPanel, getEconomicImpactProfile } from '$lib/domain/economic-impact';
-import { getServerEnv } from '$lib/server/env';
+import {
+	type AiAnalysisProvider,
+	getAiAnalysisProvider,
+	getConfiguredAiAnalysisProviders,
+	getGemmaModel,
+	getProviderApiKey,
+	requestOpenAiCompatibleCompletion
+} from './gemma-client';
 import { getBillSourceTextMetadata, type BillSourceTextForAnalysis, type BillSourceTextMetadata } from './source-text';
 
-const GEMMA_OPENAI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
-const DEFAULT_GEMMA_MODEL = 'gemma-4-31b-it';
 const CACHE_TTL_MS = 1000 * 60 * 30;
 const ANALYSIS_PROMPT_VERSION = 'bill-analysis-v7-few-shot-cot';
 
-export type AiAnalysisProvider = 'gemma';
+export type { AiAnalysisProvider } from './gemma-client';
+export { getAiAnalysisProvider, getConfiguredAiAnalysisProviders } from './gemma-client';
 
 export type BillAiAnalysis = {
 	subject: string;
@@ -41,35 +47,15 @@ export type BillAiAnalysisPayload = {
 	analysis: BillAiAnalysis;
 };
 
-type OpenAiCompatibleChatResponse = {
-	choices?: Array<{
-		message?: {
-			content?: string;
-		};
-	}>;
-	error?: {
-		message?: string;
-	};
-};
-
 const analysisCacheScope = globalThis as typeof globalThis & { __bharatZeroAnalysisCache?: Map<string, CachedAnalysis> };
 const analysisCache = (analysisCacheScope.__bharatZeroAnalysisCache ??= new Map<string, CachedAnalysis>());
 
-export function getAiAnalysisProvider(requestedProvider?: string | null): AiAnalysisProvider {
-	return normalizeProvider(requestedProvider ?? undefined) ?? normalizeProvider(getServerEnv('AI_ANALYSIS_PROVIDER')) ?? 'gemma';
-}
-
-export function getConfiguredAiAnalysisProviders(requestedProvider?: string | null): AiAnalysisProvider[] {
-	const provider = getAiAnalysisProvider(requestedProvider);
-	return isProviderConfigured(provider) ? [provider] : [];
-}
-
 export function getGemmaBillAnalysisModel() {
-	return getServerEnv('GEMMA_MODEL') ?? DEFAULT_GEMMA_MODEL;
+	return getGemmaModel();
 }
 
 export function getBillAnalysisModel(_provider = getAiAnalysisProvider()) {
-	return getGemmaBillAnalysisModel();
+	return getGemmaModel();
 }
 
 export function getBillAnalysisInputHash(bill: Bill, actions: BillAction[], sourceText?: BillSourceTextForAnalysis) {
@@ -150,7 +136,11 @@ export async function analyzeBillWithProvider(provider: AiAnalysisProvider, bill
 		return { ...cached.payload, cache: 'memory' as const };
 	}
 
-	const completion = await requestOpenAiCompatibleCompletion(provider, apiKey, model, buildMessages(bill, actions, language, sourceText));
+	const completion = await requestOpenAiCompatibleCompletion(provider, apiKey, model, buildMessages(bill, actions, language, sourceText), {
+		responseFormat: 'json_object',
+		temperature: 0.3,
+		maxCompletionTokens: 1500
+	});
 	const content = completion.choices?.[0]?.message?.content;
 	if (!content) {
 		throw new Error(completion.error?.message ?? `${provider} returned no analysis content.`);
@@ -166,57 +156,6 @@ export async function analyzeBillWithProvider(provider: AiAnalysisProvider, bill
 	const payload = { source: provider, cache: 'generated' as const, provider, model, generatedAt, sourceText: getBillSourceTextMetadata(sourceText), analysis };
 	analysisCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
 	return payload;
-}
-
-async function requestOpenAiCompatibleCompletion(provider: AiAnalysisProvider, apiKey: string, model: string, messages: Array<{ role: 'system' | 'user'; content: string }>) {
-	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), 45_000);
-
-	try {
-		const response = await fetch(getProviderChatCompletionsUrl(provider), {
-			method: 'POST',
-			headers: {
-				authorization: `Bearer ${apiKey}`,
-				'content-type': 'application/json'
-			},
-			body: JSON.stringify({
-				model,
-				messages,
-				response_format: { type: 'json_object' },
-				temperature: 0.3,
-				max_completion_tokens: 1500
-			}),
-			signal: controller.signal
-		});
-
-		const body = (await response.json().catch(() => ({}))) as OpenAiCompatibleChatResponse;
-		if (!response.ok) {
-			throw new Error(body.error?.message ?? `${provider} request failed with HTTP ${response.status}.`);
-		}
-
-		return body;
-	} finally {
-		clearTimeout(timeout);
-	}
-}
-
-function getProviderApiKey(provider: AiAnalysisProvider) {
-	return provider === 'gemma' ? (getServerEnv('GEMMA_API_KEY') ?? getServerEnv('GEMINI_API_KEY')) : undefined;
-}
-
-function getProviderChatCompletionsUrl(_provider: AiAnalysisProvider) {
-	const configuredBaseUrl = getServerEnv('GEMMA_BASE_URL') ?? getServerEnv('GEMINI_OPENAI_BASE_URL');
-	const baseUrl = (configuredBaseUrl ?? GEMMA_OPENAI_BASE_URL).replace(/\/+$/, '');
-	return baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
-}
-
-function isProviderConfigured(provider: AiAnalysisProvider) {
-	return Boolean(getProviderApiKey(provider));
-}
-
-function normalizeProvider(value: string | undefined): AiAnalysisProvider | null {
-	if (value === 'gemma') return value;
-	return null;
 }
 
 function formatEconomicContextForPrompt(profile: ReturnType<typeof getEconomicImpactProfile>): string {

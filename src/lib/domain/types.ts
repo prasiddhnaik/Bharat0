@@ -168,6 +168,8 @@ export type Question = {
 	isDemoSeed: boolean;
 };
 
+export type DebateTranscriptStatus = 'metadata_only' | 'extracted' | 'failed' | 'stale';
+
 export type Debate = {
 	id: string;
 	house: House;
@@ -179,12 +181,60 @@ export type Debate = {
 	transcript_pages?: number;
 	transcript_byte_length?: number;
 	transcript_language?: string;
+	transcript_status?: DebateTranscriptStatus;
+	transcript_char_count?: number;
+	transcript_text_hash?: string;
 	members: string[];
 	lok_sabha_number?: string;
 	session_number?: string;
 	debate_type?: string;
 	related_bill_id?: string;
 	isDemoSeed: boolean;
+};
+
+export type DebateTranscriptCoverage = {
+	strategy: 'full' | 'head-tail-truncated' | 'metadata-only' | 'transcript-failed';
+	transcriptStatus: DebateTranscriptStatus;
+	totalChars: number;
+	includedChars: number;
+	headChars: number;
+	tailChars: number;
+	omittedChars: number;
+	textHash?: string;
+};
+
+export type DebateAiSummarySpeaker = {
+	name: string;
+	role?: string;
+	contribution: string;
+};
+
+export type DebateAiSummaryQuote = {
+	quote: string;
+	speaker: string;
+};
+
+export type DebateAiSummary = {
+	gist: string;
+	keyPoints: string[];
+	keySpeakers: DebateAiSummarySpeaker[];
+	decisions: string;
+	notableQuotes: DebateAiSummaryQuote[];
+	relatedBillContext: string | null;
+	dataQuality: string;
+	source: 'gemma';
+	model: string;
+	generatedAt: string;
+};
+
+export type DebateAiSummaryPayload = {
+	source: 'gemma';
+	cache: 'generated' | 'postgres';
+	provider: 'gemma';
+	model: string;
+	generatedAt: string;
+	coverage: DebateTranscriptCoverage;
+	summary: DebateAiSummary;
 };
 
 export type Act = {

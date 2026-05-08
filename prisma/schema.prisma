@@ -218,6 +218,7 @@ model Debate {
   related_bill           Bill?             @relation(fields: [related_bill_id], references: [id], onDelete: SetNull)
   is_demo_seed           Boolean           @default(true)
   transcript             DebateTranscript?
+  ai_summaries           AiDebateAnalysis[]
   created_at             DateTime          @default(now())
   updated_at             DateTime          @updatedAt
 
@@ -279,6 +280,22 @@ model AiBillAnalysis {
 
   @@unique([bill_id, language, provider, model, input_hash])
   @@index([bill_id, language, provider])
+}
+
+model AiDebateAnalysis {
+  id           String   @id @default(cuid())
+  debate_id    String
+  debate       Debate   @relation(fields: [debate_id], references: [id], onDelete: Cascade)
+  language     String
+  provider     String   @default("gemma")
+  model        String
+  input_hash   String
+  analysis     Json
+  generated_at DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@unique([debate_id, language, provider, model, input_hash])
+  @@index([debate_id, language, provider])
 }
 
 model BillSourceText {

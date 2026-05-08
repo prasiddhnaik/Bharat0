@@ -367,6 +367,9 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 			const debateFindArgs = {
 				where: debateWhere,
 				orderBy: { date: 'desc' },
+				include: {
+					transcript: { select: { status: true, char_count: true, text_hash: true } }
+				},
 				...(filters.section === 'debates' ? { skip: (filters.page - 1) * filters.pageSize, take: filters.pageSize } : {})
 			};
 			const actFindArgs = {
