@@ -40,6 +40,16 @@ function actMatchesQuery(act: Act, linkedBill: Bill | null, query: string, rawQu
 	);
 }
 
+function compareBillRecency(left: Bill, right: Bill): number {
+	const byLatestAction = right.latest_action_date.localeCompare(left.latest_action_date);
+	if (byLatestAction !== 0) return byLatestAction;
+	return right.introduced_on.localeCompare(left.introduced_on);
+}
+
+function sortBillsByRecency(billList: Bill[]): Bill[] {
+	return [...billList].sort(compareBillRecency);
+}
+
 export function getDashboardData(filters: DashboardFilters) {
 	const query = filters.query.trim().toLowerCase();
 	const filteredBills: Bill[] = [];
@@ -128,12 +138,13 @@ export function getDashboardData(filters: DashboardFilters) {
 		return matchesSource && matchesQuery;
 	});
 	const pageStart = (filters.page - 1) * filters.pageSize;
+	const billsByRecency = sortBillsByRecency(filteredBills);
 	const pageBills =
 		filters.section === 'bills'
-			? filteredBills.slice(pageStart, pageStart + filters.pageSize)
+			? billsByRecency.slice(pageStart, pageStart + filters.pageSize)
 			: filters.section === 'overview'
-				? filteredBills.slice(0, 5)
-				: filteredBills;
+				? billsByRecency.slice(0, 5)
+				: billsByRecency;
 	const pageActs = filters.section === 'acts' ? filteredActs.slice(pageStart, pageStart + filters.pageSize) : filteredActs;
 	const actBills = pageActs
 		.map(getLinkedBillForAct)
