@@ -1,15 +1,26 @@
 # BharatZero
 
-BharatZero is an India-focused legislative explorer for bills, Acts, Parliament timelines, House power, Prime Minister terms, and official source coverage. It is built as a Vite/React frontend with a small Node API server, Prisma, and PostgreSQL/Neon.
+BharatZero is an India-focused legislative explorer for bills, Acts, Parliament timelines, House composition, Prime Minister terms, and public source coverage.
 
-The current app is no longer just a static prototype. It uses generated legislative datasets plus a Prisma-backed repository path for runtime data.
+It combines generated public legislative datasets with a Prisma/PostgreSQL-backed data layer, then presents them through a fast Vite/React interface.
 
-## Current Coverage
+## What It Shows
 
-Generated local datasets currently include:
+- Bills moving through Parliament, with stage, house, ministry, and source context.
+- Prime Minister term history with bill counts by Lok Sabha window.
+- Lok Sabha and Rajya Sabha composition context.
+- Parliament timeline events and sitting-day activity.
+- Acts, debates, committees, and source coverage views.
+- State and Union Territory governance status.
+- Source links and badges for auditability.
+- English/Hindi shell labels and bill title support.
 
-- `4,708` Bill records
-- `7,268` Bill action records
+## Data Coverage
+
+Current generated datasets include:
+
+- `4,708` bill records
+- `7,268` bill action records
 - `7,253` timeline events
 - `2,560` sitting days
 - `217` Act records
@@ -19,91 +30,41 @@ Generated local datasets currently include:
 Main source families:
 
 - Sansad legislation data, as of `2026-04-25`
-- PRS historical bill data, `1992-2019`
+- PRS Legislative Research historical bill data, `1992-2019`
 - Parliament Digital Library bill/proceeding data, `1947-2003`
 - Curated Prime Minister profile data from PM India
-- Curated Lok Sabha power snapshots from ECI/IPU-style election summaries
-
-The PDL sync now covers older Prime Ministers, including Nehru, Shastri, Nanda, and Indira Gandhi-era windows where source records exist.
-
-## Features
-
-- Overview, Houses, Timeline, Bills, Committees, Debates, Acts, and Sources tabs.
-- Left-side Prime Minister history panel with bill counts per PM term.
-- Houses tab with PM-term-specific Lok Sabha power charts and Rajya Sabha context.
-- Prime Minister profile panel with source links.
-- Bill list, bill detail, local fallback analysis, and optional AI analysis.
-- Source badges on records for auditability.
-- English/Hindi shell labels and bill title support.
-- Section URLs preserve the selected PM term when switching tabs.
-- API payload shaping and short-lived dashboard/detail caches to avoid sending huge arrays to the client.
+- Curated Lok Sabha power snapshots from election/IPU-style summaries
+- Bharat Maps / Survey of India state boundary data
 
 ## Tech Stack
 
 - React 19
 - Vite
 - TypeScript
-- SvelteKit route files still exist for the server/build integration
 - Tailwind CSS
 - Node HTTP production server
 - Prisma 7
 - PostgreSQL, tested with Neon
-- Optional Groq or NVIDIA-compatible AI analysis provider
+- pnpm 10
 
-## Repository Layout
+## Run Locally
 
-```text
-src/App.tsx                         Main React application and UI sections
-src/main.tsx                        React app entrypoint
-src/routes/                         SvelteKit route shell and legacy/server route files
-src/routes/layout.css               Global design tokens and Tailwind layer
-src/lib/domain/                     Domain model, filters, localization, PM terms, House power
-src/lib/data/                       Generated datasets and seed-backed view model
-src/lib/data/generated/             Sansad, PRS, and PDL generated legislation files
-src/lib/server/api/                 Node API route handler
-src/lib/server/repositories/        Seed and Prisma repository implementations
-src/lib/server/ai/                  AI analysis, source text, and persistent analysis cache
-src/lib/ingestion/                  Source adapter contracts and discovery metadata parsing
-src/generated/prisma/               Generated Prisma client
-prisma/schema.prisma                Database schema
-prisma/seed.ts                      Loads generated seed data into PostgreSQL
-scripts/                            Sync, upsert, discovery, and verification scripts
-server.ts                           Production static/API server
-vercel.json                         Vercel static frontend config with API rewrite
-Dockerfile                          Node production container
-docker-compose.yml                  Local PostgreSQL service
-```
+Prerequisites:
 
-## Environment
-
-Copy the example environment file:
-
-```bash
-cp .env.example .env
-```
-
-Important variables:
-
-```bash
-DATABASE_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
-HOST="127.0.0.1"
-PORT="5173"
-GROQ_API_KEY=""
-GROQ_MODEL="llama-3.3-70b-versatile"
-NVIDIA_API_KEY=""
-NVIDIA_BASE_URL="https://integrate.api.nvidia.com/v1"
-NVIDIA_MODEL="meta/llama-3.3-70b-instruct"
-AI_ANALYSIS_PROVIDER="groq"
-```
-
-Never commit `.env`, `.env.local`, or real API keys.
-
-## Local Development
+- Node.js 22.x
+- pnpm 10.x
+- PostgreSQL, or a hosted `DATABASE_URL`
 
 Install dependencies:
 
 ```bash
 pnpm install
+```
+
+Create local environment config:
+
+```bash
+cp .env.example .env
 ```
 
 Generate the Prisma client:
@@ -112,7 +73,7 @@ Generate the Prisma client:
 pnpm run db:generate
 ```
 
-Start the development server:
+Start the app:
 
 ```bash
 pnpm run dev -- --host 127.0.0.1 --port 5173
@@ -124,257 +85,68 @@ Open:
 http://127.0.0.1:5173/
 ```
 
-## Local PostgreSQL
-
-Start local Postgres:
-
-```bash
-docker compose up -d
-```
-
-Push the schema and seed data:
-
-```bash
-pnpm run db:push
-pnpm run db:seed
-```
-
-Verify database access:
-
-```bash
-pnpm run verify:db
-```
-
-## Neon PostgreSQL
-
-Set `DATABASE_URL` to the Neon connection string, then run:
-
-```bash
-pnpm run db:generate
-pnpm run db:push
-pnpm run db:seed
-```
-
-Load additional generated historical data:
-
-```bash
-pnpm run db:upsert:prs
-pnpm run db:upsert:pdl-pre2004
-pnpm exec tsx scripts/upsert-prime-minister-data.ts
-```
-
-The PM data upsert writes:
-
-- `PrimeMinisterProfile`
-- `LokSabhaPowerSnapshot`
-
-The PDL upsert replaces prior `pdl-*` records before inserting the regenerated historical slice.
-
-## Data Sync Scripts
-
-Regenerate generated datasets:
-
-```bash
-pnpm run sync:sansad
-pnpm run sync:prs
-pnpm run sync:pdl-pre2004
-```
-
-The PDL script currently searches Parliament Digital Library from `1947-2003` and emits:
-
-```text
-src/lib/data/generated/pdl-pre2004-legislation.ts
-```
-
-The generated files are source-controlled because they are the app's offline/source-backed read data.
-
-## API Routes
-
-The production Node server and dev API handler expose:
-
-```text
-GET /api/health
-GET /api/dashboard?...filters
-GET /api/bills/:billId
-GET /api/bills/:billId/ai-analysis?lang=en
-GET /api/prime-ministers
-GET /api/prime-ministers/:termId
-GET /api/houses/power?pm=:termId
-GET /api/sources
-```
-
-Common dashboard filters:
-
-```text
-section=overview|houses|timeline|bills|committees|questions|debates|acts|sources
-lang=en|hi
-house=all|lok-sabha|rajya-sabha
-pm=all|nehru|lal-bahadur-shastri|modi-2|...
-date=YYYY-MM-DD
-status=all|introduced|passed_origin_house|...
-area=all|Ministry of Finance|...
-source=all|source-pdl|source-prs|source-sansad|...
-page=1
-pageSize=60
-```
-
-Example:
-
-```bash
-curl "http://127.0.0.1:5173/api/dashboard?section=houses&lang=en&pm=nehru&page=1&pageSize=60"
-curl "http://127.0.0.1:5173/api/houses/power?pm=vajpayee-2"
-curl "http://127.0.0.1:5173/api/prime-ministers/nehru"
-```
-
-## Verification
-
-Core checks:
+## Useful Commands
 
 ```bash
 pnpm run check
-pnpm run verify:repositories
-pnpm run verify:prisma-mappers
-pnpm run verify:prisma-repository
-pnpm run verify:timeline
-pnpm run verify:localization
-```
-
-Data/API checks:
-
-```bash
-pnpm exec tsx scripts/verify-pm-data-api.ts
-pnpm exec tsx scripts/verify-prime-minister-data-db.ts
-pnpm exec tsx scripts/verify-prime-minister-profiles.ts
-pnpm exec tsx scripts/verify-house-power.ts
-pnpm exec tsx scripts/verify-navigation-links.ts
-pnpm exec tsx scripts/verify-older-prime-minister-coverage.ts
-```
-
-Source discovery checks:
-
-```bash
-pnpm run discover:sources
-pnpm run verify:source-discovery
-pnpm run verify:ingestion
-```
-
-Production smoke check:
-
-```bash
+pnpm run build
 pnpm run verify:production
 ```
 
-## Production Build
-
-Build:
+For local PostgreSQL:
 
 ```bash
-pnpm run build
+docker compose up -d
+pnpm run db:push
+pnpm run db:seed
+pnpm run verify:db
 ```
 
-Run production server:
+## Deployment
+
+The repository includes:
+
+- `Dockerfile` for a Node host that serves the production frontend and API server.
+- `vercel.json` for static Vercel frontend hosting with `/api/*` rewritten to an external API host.
+
+Vercel should detect `pnpm-lock.yaml` and `packageManager: pnpm@10.12.1`, install with pnpm, then run:
 
 ```bash
-HOST=127.0.0.1 PORT=5174 pnpm run start
+pnpm run db:generate && pnpm run build
 ```
 
-Health check:
+To check the linked Vercel project locally without deploying:
 
 ```bash
-curl http://127.0.0.1:5174/api/health
+pnpm exec vercel pull --yes --environment=preview
+pnpm exec vercel build
+
+pnpm exec vercel pull --yes --environment=production
+pnpm exec vercel build --prod
 ```
 
-## Deployment Notes
-
-The repo includes two deployment paths:
-
-- `Dockerfile` for a Node host that can run the production server.
-- `vercel.json` for a static Vercel frontend with `/api/*` rewritten to an external API host.
-
-For a single full-stack Node deployment:
+## Project Layout
 
 ```text
-Build command: pnpm install --frozen-lockfile && pnpm run db:generate && pnpm run build
-Start command: pnpm run start
-Health path: /api/health
+src/App.tsx                         Main React application
+src/main.tsx                        React app entrypoint
+src/lib/domain/                     Domain model, filters, localization, PM terms
+src/lib/data/                       Generated datasets and seed-backed view model
+src/lib/server/api/                 Node API route handler
+src/lib/server/repositories/        Seed and Prisma repository implementations
+src/lib/server/ai/                  AI analysis and persistent analysis cache
+src/generated/prisma/               Generated Prisma client
+prisma/schema.prisma                Database schema
+prisma/seed.ts                      Seed loader
+scripts/                            Sync, upsert, discovery, and verification scripts
+server.ts                           Production static/API server
+vercel.json                         Vercel static frontend config
+Dockerfile                          Node production container
+docker-compose.yml                  Local PostgreSQL service
 ```
 
-For Vercel static hosting:
+## Notes
 
-```text
-Build command: pnpm run db:generate && pnpm run build
-Output directory: dist
-API rewrite: configured in vercel.json
-```
-
-If the API backend URL changes, update the `/api/:path*` rewrite in `vercel.json`.
-
-## Data Model
-
-Primary database tables:
-
-- `Bill`
-- `BillAction`
-- `SittingDay`
-- `TimelineEvent`
-- `Committee`
-- `Question`
-- `Act`
-- `AiBillAnalysis`
-- `BillSourceText`
-- `PrimeMinisterProfile`
-- `LokSabhaPowerSnapshot`
-
-The Prisma repository filters bills by:
-
-- House
-- Bill stage
-- Ministry/policy area
-- Source family
-- Prime Minister date window
-- Search query
-- Pagination
-
-The Houses tab intentionally hides policy-area and bill-stage filters because that view is about PM-term House power, not bill list narrowing.
-
-## Source Strategy
-
-BharatZero keeps source discovery, normalization, and read models separate:
-
-1. `source_capture`
-2. `normalization`
-3. `stage_resolution`
-4. `read_model_publish`
-
-Prepared/current source contracts:
-
-- Sansad portal
-- PRS Legislative Research
-- Parliament Digital Library
-- data.gov.in catalog discovery
-
-Planned source adapters:
-
-- Lok Sabha official pages
-- Rajya Sabha official pages
-- India Code
-- eGazette
-- NeVA
-
-## Known Limits
-
-- PDL historical records are proceeding-derived; some entries are bill mentions, continuing debate records, returned-message records, or committee/report references rather than clean official bill master rows.
-- Some short acting PM windows can still show zero if no source record falls inside the exact term dates.
-- `questions` currently has schema and UI support, but generated question rows are not yet populated.
-- Svelte route files remain in the repo, while the primary app surface is the React app in `src/App.tsx`.
-- AI analysis is optional and depends on server-only provider keys.
-
-## Useful URLs
-
-```text
-/?section=overview&lang=en
-/?section=houses&lang=en&pm=nehru
-/?section=bills&lang=en&page=1&pageSize=60
-/?section=timeline&lang=en
-/?section=sources&lang=en
-```
+- Do not commit `.env`, `.env.local`, or real API keys.
+- Generated data files are committed because they provide the app's offline/source-backed read data.
+- The public frontend can run statically; API routes are served by the Node backend or rewritten to a deployed API host.

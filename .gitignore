@@ -12,6 +12,9 @@ node_modules
 logs.*.json
 /artifacts
 
+# Local maintainer docs
+docs/DEVELOPER_GUIDE.md
+
 # Generated Prisma client
 /src/generated/prisma
 /generated/prisma
