@@ -50,8 +50,8 @@ async function waitForHealthyServer(baseUrl: string, getLogs: () => string) {
 }
 
 function assertBuildArtifactsExist() {
-	assert.ok(existsSync('dist/index.html'), 'missing dist/index.html; run npm run build first');
-	assert.ok(existsSync('dist-server/server.js'), 'missing dist-server/server.js; run npm run build first');
+	assert.ok(existsSync('dist/index.html'), 'missing dist/index.html; run pnpm run build first');
+	assert.ok(existsSync('dist-server/server.js'), 'missing dist-server/server.js; run pnpm run build first');
 }
 
 async function main() {

@@ -3,9 +3,9 @@ services:
     name: bharatzero
     runtime: node
     plan: starter
-    buildCommand: npm ci && npm run db:generate && npm run build
-    preDeployCommand: npm run db:push
-    startCommand: npm run start
+    buildCommand: corepack enable && corepack prepare pnpm@10.12.1 --activate && pnpm install --frozen-lockfile && pnpm run db:generate && pnpm run build
+    preDeployCommand: pnpm run db:push
+    startCommand: pnpm run start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV

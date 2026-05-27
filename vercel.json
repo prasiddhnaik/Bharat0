@@ -1,5 +1,5 @@
 {
-	"buildCommand": "npm run db:generate && npm run build",
+	"buildCommand": "pnpm run db:generate && pnpm run build",
 	"outputDirectory": "dist",
 	"framework": null,
 	"rewrites": [
