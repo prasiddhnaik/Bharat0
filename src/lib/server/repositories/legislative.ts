@@ -85,8 +85,8 @@ const repositorySources: SourceEntry[] = [
 		id: 'source-prs',
 		name: 'PRS Legislative Research',
 		kind: 'prs',
-		url: 'https://prsindia.org/billtrack/category/all',
-		preparedFor: 'Using PRS historical bill tracking records, summaries, ministries, stage dates, and source links before the Sansad API coverage window.',
+		url: 'https://prsindia.org/sessiontrack/budget-session-2026/session-wrap',
+		preparedFor: 'Using PRS historical bill tracking records plus current-session terminal outcomes where PRS Session Wrap has newer status evidence than the Sansad mirror.',
 		status: 'using-now'
 	},
 	{
