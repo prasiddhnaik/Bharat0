@@ -1092,6 +1092,7 @@ function AppShell({
 						</div>}
 						{section !== 'states' && <MobilePrimeMinisterPanel dashboard={dashboard} />}
 						{children}
+						<PrsAttributionNotice />
 					</div>
 				</main>
 				{hasAside && <div className="hidden min-h-0 min-w-0 overflow-y-auto border-l border-[var(--bz-border)] bg-[var(--bz-surface)] lg:block">{aside}</div>}
@@ -1196,6 +1197,28 @@ function ParliamentSessionBanner({ latestActivityDate }: { latestActivityDate: s
 		<div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
 			<span className="font-semibold">Parliament is currently in recess.</span> No bills have been introduced or moved since {formatDate(latestActivityDate)} ({daysSince} days ago). New activity will appear here when sittings resume.
 		</div>
+	);
+}
+
+function PrsAttributionNotice() {
+	return (
+		<footer className="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] px-4 py-3 text-[11px] leading-5 text-[var(--bz-text-2)] sm:px-5">
+			<p>
+				<span className="font-semibold text-[var(--bz-text-1)]">PRS Legislative Research attribution:</span>{' '}
+				PRS material used in BharatZero is available under the{' '}
+				<a className="font-semibold text-[var(--bz-accent)] underline-offset-2 hover:underline bz-focus" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">
+					Creative Commons Attribution 4.0 International License
+				</a>
+				.
+			</p>
+			<p className="mt-1">
+				PRS provides its data for informational use and does not warrant that it is accurate or complete. PRS is an independent, not-for-profit group. See the{' '}
+				<a className="font-semibold text-[var(--bz-accent)] underline-offset-2 hover:underline bz-focus" href="https://prsindia.org/aboutus/disclaimer" target="_blank" rel="noreferrer">
+					PRS disclaimer
+				</a>
+				.
+			</p>
+		</footer>
 	);
 }
 

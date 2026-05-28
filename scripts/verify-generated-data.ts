@@ -17,6 +17,12 @@ import {
 	prsTimelineEvents
 } from '../src/lib/data/generated/prs-legislation';
 import {
+	prsCurrentSessionBillActions,
+	prsCurrentSessionBills,
+	prsCurrentSessionSittingDays,
+	prsCurrentSessionTimelineEvents
+} from '../src/lib/data/generated/prs-current-session-legislation';
+import {
 	sansadActs,
 	sansadBillActions,
 	sansadBills,
@@ -43,6 +49,15 @@ const generatedSources = [
 			actions: prsBillActions.length,
 			sittingDays: prsSittingDays.length,
 			timelineEvents: prsTimelineEvents.length
+		}
+	},
+	{
+		name: 'PRS current session',
+		counts: {
+			bills: prsCurrentSessionBills.length,
+			actions: prsCurrentSessionBillActions.length,
+			sittingDays: prsCurrentSessionSittingDays.length,
+			timelineEvents: prsCurrentSessionTimelineEvents.length
 		}
 	},
 	{

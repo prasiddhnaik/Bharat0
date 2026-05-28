@@ -1,7 +1,7 @@
 import type { Debate, Question, TimelineEvent } from '$lib/domain/types';
 
 export const dataGovMeta = {
-	asOf: "2026-05-02",
+	asOf: "2026-05-27",
 	questionCatalogs: 16,
 	debateCatalogs: 2,
 	note: 'Generated from artifacts/source-discovery/latest.json using scripts/sync-data-gov-questions.ts.'

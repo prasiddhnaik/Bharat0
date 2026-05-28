@@ -25,6 +25,13 @@ import {
 	prsTimelineEvents
 } from './generated/prs-legislation';
 import {
+	prsCurrentSessionBillActions,
+	prsCurrentSessionBills,
+	prsCurrentSessionMeta,
+	prsCurrentSessionSittingDays,
+	prsCurrentSessionTimelineEvents
+} from './generated/prs-current-session-legislation';
+import {
 	pdlPre2004BillActions,
 	pdlPre2004Bills,
 	pdlPre2004Meta,
@@ -43,7 +50,7 @@ export const seedMeta: { label: string; description: string; updatedAt: string }
 	label: 'Sansad, PRS, Parliament Digital Library, and OGD records',
 	description:
 		'Generated from the Sansad legislation API path with a public mirror fallback, PRS India historical bill pages, Parliament Digital Library pre-2004 bill proceedings, Open Government Data Platform India question/debate catalogs, plus a small manually curated set from PIB, Gazette/Act PDFs, and India Code.',
-	updatedAt: [sansadMeta.asOf, prsMeta.asOf, pdlPre2004Meta.asOf, dataGovMeta.asOf].sort().at(-1) ?? sansadMeta.asOf
+	updatedAt: [sansadMeta.asOf, prsMeta.asOf, prsCurrentSessionMeta.asOf, pdlPre2004Meta.asOf, dataGovMeta.asOf].sort().at(-1) ?? sansadMeta.asOf
 } as const;
 
 const curatedBills: Bill[] = [
@@ -827,18 +834,18 @@ function mergeById<T extends { id: string }>(primary: T[], fallback: T[]): T[] {
 
 const curatedBillIds = new Set(curatedBills.map((bill) => bill.id));
 
-export const bills: Bill[] = mergeById(mergeById(mergeById(curatedBills, sansadBills), prsBills), pdlPre2004Bills);
+export const bills: Bill[] = mergeById(mergeById(mergeById(mergeById(curatedBills, prsCurrentSessionBills), sansadBills), prsBills), pdlPre2004Bills);
 export const billActions: BillAction[] = mergeById(
-	curatedBillActions,
+	mergeById(curatedBillActions, prsCurrentSessionBillActions),
 	[
 		...sansadBillActions.filter((action) => !curatedBillIds.has(action.bill_id)),
 		...prsBillActions,
 		...pdlPre2004BillActions
 	]
 );
-export const sittingDays: SittingDay[] = mergeById(mergeById(mergeById(sansadSittingDays, curatedSittingDays), prsSittingDays), pdlPre2004SittingDays);
+export const sittingDays: SittingDay[] = mergeById(mergeById(mergeById(mergeById(sansadSittingDays, curatedSittingDays), prsCurrentSessionSittingDays), prsSittingDays), pdlPre2004SittingDays);
 export const timelineEvents: TimelineEvent[] = mergeById(
-	curatedTimelineEvents,
+	mergeById(curatedTimelineEvents, prsCurrentSessionTimelineEvents),
 	[
 		...sansadTimelineEvents.filter((event) => !event.related_bill_id || !curatedBillIds.has(event.related_bill_id)),
 		...prsTimelineEvents,
@@ -881,8 +888,8 @@ export const sources: SourceEntry[] = [
 		id: 'source-prs',
 		name: 'PRS Legislative Research',
 		kind: 'prs',
-		url: 'https://prsindia.org/billtrack/category/all',
-		preparedFor: 'Using PRS historical bill tracking records, summaries, ministries, stage dates, and source links before the Sansad API coverage window.',
+		url: 'https://prsindia.org/sessiontrack/budget-session-2026/session-wrap',
+		preparedFor: 'Using PRS historical bill tracking records plus current-session terminal outcomes where PRS Session Wrap has newer status evidence than the Sansad mirror.',
 		status: 'using-now'
 	},
 	{

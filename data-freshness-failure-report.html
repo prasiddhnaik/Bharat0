@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>BharatZero Data Freshness Failure Report</title>
+		<style>
+			:root {
+				color-scheme: light;
+				--bg: #f0ede7;
+				--panel: #ffffff;
+				--panel-muted: #f7f5f1;
+				--border: #e5e1d9;
+				--text: #1a1a18;
+				--muted: #5c5c56;
+				--soft: #9e9c96;
+				--accent: #d97706;
+				--accent-soft: #fef3c7;
+				--danger: #b42318;
+				--danger-soft: #fff1f0;
+				--warn: #b54708;
+				--warn-soft: #fffaeb;
+				--ok: #027a48;
+				--ok-soft: #ecfdf3;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+				background: var(--bg);
+				color: var(--text);
+				font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+				line-height: 1.5;
+			}
+
+			a {
+				color: var(--accent);
+				font-weight: 700;
+				text-decoration: none;
+			}
+
+			a:hover {
+				text-decoration: underline;
+				text-underline-offset: 3px;
+			}
+
+			main {
+				width: min(1120px, calc(100% - 32px));
+				margin: 0 auto;
+				padding: 32px 0 48px;
+			}
+
+			header,
+			section,
+			footer {
+				border: 1px solid var(--border);
+				background: var(--panel);
+				border-radius: 10px;
+				box-shadow: 0 1px 2px rgba(26, 26, 24, 0.04);
+			}
+
+			header {
+				padding: 28px;
+			}
+
+			section,
+			footer {
+				margin-top: 16px;
+				padding: 22px;
+			}
+
+			.eyebrow {
+				margin: 0 0 8px;
+				color: var(--accent);
+				font-size: 0.72rem;
+				font-weight: 800;
+				letter-spacing: 0.07em;
+				text-transform: uppercase;
+			}
+
+			h1,
+			h2,
+			h3,
+			p {
+				margin-top: 0;
+			}
+
+			h1 {
+				max-width: 760px;
+				margin-bottom: 10px;
+				font-size: clamp(2rem, 4vw, 3.2rem);
+				line-height: 1.05;
+				letter-spacing: 0;
+			}
+
+			h2 {
+				margin-bottom: 8px;
+				font-size: 1.25rem;
+				line-height: 1.2;
+			}
+
+			h3 {
+				margin-bottom: 6px;
+				font-size: 1rem;
+			}
+
+			.lede {
+				max-width: 860px;
+				margin-bottom: 0;
+				color: var(--muted);
+				font-size: 1rem;
+			}
+
+			.meta-grid,
+			.card-grid,
+			.action-grid {
+				display: grid;
+				gap: 12px;
+			}
+
+			.meta-grid {
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				margin-top: 22px;
+			}
+
+			.card-grid {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+
+			.action-grid {
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+			}
+
+			.metric,
+			.card,
+			.action {
+				border: 1px solid var(--border);
+				border-radius: 8px;
+				background: var(--panel-muted);
+				padding: 14px;
+			}
+
+			.metric span {
+				display: block;
+				color: var(--soft);
+				font-size: 0.68rem;
+				font-weight: 800;
+				letter-spacing: 0.07em;
+				text-transform: uppercase;
+			}
+
+			.metric strong {
+				display: block;
+				margin-top: 6px;
+				font-size: 1rem;
+			}
+
+			.status {
+				display: inline-flex;
+				align-items: center;
+				border-radius: 999px;
+				padding: 4px 8px;
+				font-size: 0.7rem;
+				font-weight: 800;
+				letter-spacing: 0.04em;
+				text-transform: uppercase;
+			}
+
+			.status.fail {
+				background: var(--danger-soft);
+				color: var(--danger);
+			}
+
+			.status.warn {
+				background: var(--warn-soft);
+				color: var(--warn);
+			}
+
+			.status.fixed {
+				background: var(--ok-soft);
+				color: var(--ok);
+			}
+
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				overflow: hidden;
+				border: 1px solid var(--border);
+				border-radius: 8px;
+				background: var(--panel);
+				font-size: 0.9rem;
+			}
+
+			th,
+			td {
+				padding: 12px;
+				border-bottom: 1px solid var(--border);
+				text-align: left;
+				vertical-align: top;
+			}
+
+			th {
+				background: var(--panel-muted);
+				color: var(--soft);
+				font-size: 0.68rem;
+				font-weight: 800;
+				letter-spacing: 0.07em;
+				text-transform: uppercase;
+			}
+
+			tr:last-child td {
+				border-bottom: 0;
+			}
+
+			code {
+				border: 1px solid var(--border);
+				border-radius: 5px;
+				background: var(--panel-muted);
+				padding: 2px 5px;
+				font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+				font-size: 0.82em;
+			}
+
+			ul,
+			ol {
+				margin: 10px 0 0;
+				padding-left: 1.2rem;
+				color: var(--muted);
+			}
+
+			li + li {
+				margin-top: 6px;
+			}
+
+			.note {
+				margin-top: 12px;
+				border-left: 3px solid var(--accent);
+				background: var(--panel-muted);
+				padding: 10px 12px;
+				color: var(--muted);
+				font-size: 0.9rem;
+			}
+
+			footer {
+				color: var(--muted);
+				font-size: 0.82rem;
+			}
+
+			@media (max-width: 840px) {
+				main {
+					width: min(100% - 20px, 1120px);
+					padding-top: 16px;
+				}
+
+				header,
+				section,
+				footer {
+					padding: 16px;
+				}
+
+				.meta-grid,
+				.card-grid,
+				.action-grid {
+					grid-template-columns: 1fr;
+				}
+
+				table {
+					display: block;
+					overflow-x: auto;
+					white-space: nowrap;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<header>
+				<p class="eyebrow">BharatZero data audit</p>
+				<h1>Freshness check failures and fix plan</h1>
+				<p class="lede">
+					This report covers the checks that failed, produced ambiguous evidence, or found stale local data during the May 27, 2026 audit, plus the narrow fixes already applied.
+				</p>
+				<div class="meta-grid" aria-label="Audit metadata">
+					<div class="metric">
+						<span>Repo</span>
+						<strong>bharatzero</strong>
+					</div>
+					<div class="metric">
+						<span>Database</span>
+						<strong>Prisma PostgreSQL</strong>
+					</div>
+					<div class="metric">
+						<span>Required package runner</span>
+						<strong>pnpm</strong>
+					</div>
+					<div class="metric">
+						<span>Generated data verified</span>
+						<strong>Passed after refresh</strong>
+					</div>
+				</div>
+			</header>
+
+			<section>
+				<p class="eyebrow">Executive summary</p>
+				<h2>What failed</h2>
+				<div class="card-grid">
+					<article class="card">
+						<span class="status fixed">Fixed</span>
+						<h3>PRS current-session bill statuses were stale</h3>
+						<p>
+							Local generated and DB records stopped at April 16, 2026 introduction events for the Constitution 131st Amendment Bill, the Delimitation Bill, and the Union Territories Laws Amendment Bill. A narrow PRS Session Wrap sync now records April 17, 2026 terminal outcomes for only those three bills, corroborated by the Ministry of Parliamentary Affairs Budget Session 2026 press release and PRS Vital Stats.
+						</p>
+					</article>
+					<article class="card">
+						<span class="status fail">Source failure</span>
+						<h3>Sansad legislation JSON returned HTTP 500</h3>
+						<p>
+							The official Sansad JSON API check failed with HTTP 500. Existing scripts would fall back to a public mirror, so a broad Sansad refresh was not safe enough to run as a source-of-truth update.
+						</p>
+					</article>
+					<article class="card">
+						<span class="status warn">Ambiguous</span>
+						<h3>Parliament Digital Library transcript discovery failed</h3>
+						<p>
+							Source discovery could not fetch the PDL/eparlib committee-report and transcript-search URLs. That means debate freshness beyond existing manual rows could not be proven from PDL during this run.
+						</p>
+					</article>
+					<article class="card">
+						<span class="status fixed">Fixed</span>
+						<h3>data.gov source metadata was stale</h3>
+						<p>
+							Source discovery found Rajya Sabha questions Session 267. The generated metadata was refreshed and the data.gov question/timeline rows were re-upserted.
+						</p>
+					</article>
+				</div>
+			</section>
+
+			<section>
+				<p class="eyebrow">Failure table</p>
+				<h2>Failures, impact, and remediation</h2>
+				<table>
+					<thead>
+						<tr>
+							<th>Area</th>
+							<th>Observed failure</th>
+							<th>Impact</th>
+							<th>Fix plan</th>
+							<th>Safe command path</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>Bill actions and timeline</td>
+							<td>Local latest action/timeline was April 16, 2026, while PRS current-session pages show April 17, 2026 status updates.</td>
+							<td>Fixed: the three delimitation-related 2026 bills now have PRS-sourced terminal action/timeline rows dated April 17, 2026.</td>
+							<td>
+								Implemented a narrow current-session PRS status sync that reads the PRS Session Wrap, normalizes voted-down and infructuous states, records MPA/PRS Vital Stats corroboration in generated metadata, and upserts only affected Bill, BillAction, SittingDay, and TimelineEvent rows.
+							</td>
+							<td>
+								Completed with <code>pnpm run sync:prs-current-session</code>, <code>pnpm run db:upsert:prs-current-session --dry-run</code>, and <code>pnpm run db:upsert:prs-current-session</code>.
+							</td>
+						</tr>
+						<tr>
+							<td>Sansad legislation API</td>
+							<td>Official API returned HTTP 500 for the legislation endpoint.</td>
+							<td>We cannot prove a live Sansad refresh is authoritative from the API in this environment. The script fallback mirror may lag or disagree.</td>
+							<td>
+								Retry the Sansad API later. If it still fails, record the mirror fallback as non-authoritative and avoid destructive broad refreshes.
+							</td>
+							<td>
+								Probe first with the same endpoint. Only then run <code>pnpm run sync:sansad</code> and <code>pnpm run verify:generated</code>.
+							</td>
+						</tr>
+						<tr>
+							<td>PDL / eparlib debate discovery</td>
+							<td>PDL transcript and government-bill debate discovery URLs failed during source discovery.</td>
+							<td>Debate freshness is ambiguous for PDL-derived debates. data.gov debate catalogs are current relative to their own old catalog dates, but they are not enough to prove modern debate coverage.</td>
+							<td>
+								Add retry/backoff and alternate PDL URL handling. Preserve existing manual debate rows unless a fetched source confirms a newer replacement.
+							</td>
+							<td>
+								Use <code>pnpm run discover:sources</code> first. Do not run broad debate upserts until discovery returns successful PDL evidence.
+							</td>
+						</tr>
+						<tr>
+							<td>State governance</td>
+							<td>Validation passed, but the code has no source sync. Freshness depends on manual verification of the Britannica source page.</td>
+							<td>Records can become stale without the verification script failing, as long as <code>last_verified</code> remains within the configured freshness window.</td>
+							<td>
+								Create a manual review checklist or structured source adapter for chief minister/governance changes. Keep edits scoped to <code>src/lib/domain/state-governance.ts</code>.
+							</td>
+							<td>
+								After manual edits, run <code>pnpm run verify:state-governance</code>.
+							</td>
+						</tr>
+						<tr>
+							<td>Command invocation</td>
+							<td><code>pnpm run db:upsert:data-gov -- --dry-run</code> failed because the script parser received a literal <code>--</code> flag.</td>
+							<td>No data was changed. This was operator syntax noise, not a data pipeline failure.</td>
+							<td>
+								Use the repo's accepted flag style for these scripts: pass the flag directly after the script name.
+							</td>
+							<td>
+								Correct form: <code>pnpm run db:upsert:data-gov --dry-run</code>.
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</section>
+
+			<section>
+				<p class="eyebrow">Fix sequence</p>
+				<h2>Recommended implementation order</h2>
+				<div class="action-grid">
+					<article class="action">
+						<h3>1. Current-session PRS delta ingestion completed</h3>
+						<ol>
+							<li>Fetches the PRS Budget Session 2026 Session Wrap.</li>
+							<li>Extracts bill title, introduced date, outcome, source URL, and affected house.</li>
+							<li>Maps the voted-down constitutional amendment and the two infructuous linked bills to terminal local bill/action/timeline records.</li>
+							<li>Dry-runs against the DB, then upserts only the three affected bills and their PRS current-session rows.</li>
+						</ol>
+					</article>
+					<article class="action">
+						<h3>2. Harden source discovery</h3>
+						<ol>
+							<li>Add retry/backoff around Sansad and PDL fetches.</li>
+							<li>Separate authoritative API success from mirror fallback success in generated metadata.</li>
+							<li>Report source failures as structured JSON so audits can diff failures over time.</li>
+						</ol>
+					</article>
+					<article class="action">
+						<h3>3. Add governance review workflow</h3>
+						<ol>
+							<li>Document the official/manual source fields required for each state.</li>
+							<li>Run a manual review when source pages change or elections/oath notices happen.</li>
+							<li>Update <code>last_verified</code> only after values are checked, then run verification.</li>
+						</ol>
+					</article>
+				</div>
+				<p class="note">
+					The data.gov refresh was completed with narrow commands: <code>pnpm run discover:sources:write</code>, <code>pnpm run sync:data-gov</code>, <code>pnpm run verify:data-gov</code>, and <code>pnpm run db:upsert:data-gov</code>. The PRS current-session fix was completed with <code>pnpm run sync:prs-current-session</code>, <code>pnpm run verify:prs-current-session</code>, and <code>pnpm run db:upsert:prs-current-session</code>.
+				</p>
+			</section>
+
+			<section>
+				<p class="eyebrow">Verification plan</p>
+				<h2>Checks to run after fixes</h2>
+				<table>
+					<thead>
+						<tr>
+							<th>Fix</th>
+							<th>Verification</th>
+							<th>Expected result</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>PRS current-session delta ingestion</td>
+							<td><code>pnpm run verify:generated</code>, <code>pnpm run verify:prs-current-session</code>, then a DB query for the three April 2026 bills.</td>
+							<td>Passed. Latest action/timeline includes April 17, 2026 PRS outcomes and source URLs.</td>
+						</tr>
+						<tr>
+							<td>Sansad API retry/fallback metadata</td>
+							<td><code>pnpm run sync:sansad</code> followed by <code>pnpm run verify:generated</code>.</td>
+							<td>Generated metadata clearly states whether records came from Sansad API or fallback mirror.</td>
+						</tr>
+						<tr>
+							<td>PDL discovery hardening</td>
+							<td><code>pnpm run discover:sources</code> and source-discovery JSON inspection.</td>
+							<td>PDL transcript targets either fetch successfully or return structured, actionable failure reasons.</td>
+						</tr>
+						<tr>
+							<td>State governance manual refresh</td>
+							<td><code>pnpm run verify:state-governance</code>.</td>
+							<td>All 36 records pass field, freshness, and source URL validation.</td>
+						</tr>
+					</tbody>
+				</table>
+			</section>
+
+			<section>
+				<p class="eyebrow">Attribution follow-up</p>
+				<h2>PRS license/disclaimer UI</h2>
+				<p>
+					The website now includes visible PRS attribution because the app uses PRS-derived legislative data. The UI links to the CC BY 4.0 license and the PRS disclaimer page without overwhelming the dashboard.
+				</p>
+				<ul>
+					<li>Added a compact attribution notice in the main app shell footer area.</li>
+					<li>Keep PRS named explicitly as the source owner.</li>
+					<li>Link to the Creative Commons Attribution 4.0 International License.</li>
+					<li>Link to the PRS disclaimer page and summarize the accuracy/completeness limitation.</li>
+				</ul>
+			</section>
+
+			<footer>
+				<p>
+					Report generated from the May 27, 2026 BharatZero audit run. External evidence checked included MPA Bills List, PRS current-session legislation pages, Sansad legislation surfaces, data.gov catalog metadata, and PRS disclaimer/license text.
+				</p>
+			</footer>
+		</main>
+	</body>
+</html>
