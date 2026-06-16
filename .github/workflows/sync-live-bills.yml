@@ -1,5 +1,8 @@
 name: sync-live-bills
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -15,10 +18,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
-      - run: npm ci
+      - run: corepack enable
 
-      - run: npx tsx scripts/sync-live-bills.ts
+      - run: pnpm install --no-frozen-lockfile
+
+      - run: pnpm run db:generate
+
+      - run: pnpm run sync:live-bills
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
