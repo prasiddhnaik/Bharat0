@@ -29,6 +29,8 @@ export type StateGovernanceRecord = {
 	source_org: string;
 	last_verified: string;
 	confidence: GovernanceConfidence;
+	review_note?: string;
+	additional_sources?: Array<{ label: string; url: string }>;
 };
 
 export type StateGovernanceDisplayField =
@@ -56,10 +58,18 @@ export const EXPECTED_STATE_GOVERNANCE_FIELD_ORDER: StateGovernanceDisplayField[
 	'last_verified'
 ];
 
-export const STATE_GOVERNANCE_DATA_AS_OF = '2026-05-06';
+export const STATE_GOVERNANCE_DATA_AS_OF = '2026-11-11';
+export const STATE_GOVERNANCE_REVIEW_NOTE = 'Chief minister roster checked against the National Portal of India. Alliance and ministry composition labels are provisional where a complete current cabinet source has not been checked.';
+
+export function isGovernanceReviewStale(reviewedOn: string, now = new Date()) {
+	const reviewed = Date.parse(`${reviewedOn}T00:00:00.000Z`);
+	const age = (now.getTime() - reviewed) / 86_400_000;
+	return !Number.isFinite(age) || age < 0 || age > 90;
+}
 export const STATE_GOVERNANCE_NEXT_REVIEW = 'Review after certified results, oath notices, or President/Governor notification.';
 
-const britannicaChiefMinistersUrl = 'https://www.britannica.com/topic/List-of-current-Indian-chief-ministers';
+const nationalChiefMinistersUrl = 'https://www.india.gov.in/directory/whos-who/chief-ministers-of-states-and-union-territories';
+const unionTerritoriesUrl = 'https://www.mha.gov.in/finance-division-inner';
 
 export const STATE_GOVERNANCE_VISUAL_PALETTE = {
 	NDA: {
@@ -165,8 +175,8 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: [],
 		chief_minister: null,
 		event_date: '1956-11-01',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: unionTerritoriesUrl,
+		source_org: 'Ministry of Home Affairs',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
 		confidence: 'verified'
 	},
@@ -181,10 +191,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Telugu Desam Party', 'Jana Sena Party', 'Bharatiya Janata Party'],
 		chief_minister: 'N. Chandrababu Naidu',
 		event_date: '2024-06-12',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-AR',
@@ -197,10 +207,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Pema Khandu',
 		event_date: '2024-06-13',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-AS',
@@ -210,12 +220,13 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		status: 'active_coalition',
 		alliance: 'NDA',
 		lead_party: 'Bharatiya Janata Party',
-		member_parties: ['Bharatiya Janata Party', 'Asom Gana Parishad', 'United People’s Party Liberal'],
+		member_parties: ['Bharatiya Janata Party', 'Asom Gana Parishad', 'Bodoland People’s Front'],
 		chief_minister: 'Himanta Biswa Sarma',
-		event_date: '2021-05-10',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		event_date: '2026-05-12',
+		source_url: 'https://newsonair.gov.in/senior-bjp-leader-himanta-biswa-sarma-to-be-sworn-in-as-cm-of-assam-in-guwahati-today/',
+		source_org: 'Akashvani News',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
+		additional_sources: [{ label: 'Cabinet composition (PTI)', url: 'https://theprint.in/india/assams-longest-serving-woman-mla-tea-tribe-leader-among-4-ministers-sworn-into-himanta-cabinet/2928756/' }],
 		confidence: 'pending'
 	},
 	{
@@ -229,10 +240,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party', 'Janata Dal (United)', 'Hindustani Awam Morcha', 'Lok Janshakti Party (Ram Vilas)'],
 		chief_minister: 'Samrat Choudhary',
 		event_date: '2026-04-15',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-CH',
@@ -245,8 +256,8 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: [],
 		chief_minister: null,
 		event_date: '1966-11-01',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: unionTerritoriesUrl,
+		source_org: 'Ministry of Home Affairs',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
 		confidence: 'verified'
 	},
@@ -261,10 +272,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Vishnu Deo Sai',
 		event_date: '2023-12-13',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-DH',
@@ -277,8 +288,8 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: [],
 		chief_minister: null,
 		event_date: '2020-01-26',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: unionTerritoriesUrl,
+		source_org: 'Ministry of Home Affairs',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
 		confidence: 'verified'
 	},
@@ -293,10 +304,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Rekha Gupta',
 		event_date: '2025-02-20',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-GA',
@@ -309,10 +320,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party', 'Maharashtrawadi Gomantak Party'],
 		chief_minister: 'Pramod Sawant',
 		event_date: '2022-03-28',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-GJ',
@@ -325,10 +336,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Bhupendra Patel',
 		event_date: '2022-12-12',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-HR',
@@ -341,10 +352,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Nayab Singh Saini',
 		event_date: '2024-10-17',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-HP',
@@ -357,10 +368,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Indian National Congress'],
 		chief_minister: 'Sukhvinder Singh Sukhu',
 		event_date: '2022-12-11',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-JK',
@@ -373,10 +384,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Jammu and Kashmir National Conference', 'Indian National Congress'],
 		chief_minister: 'Omar Abdullah',
 		event_date: '2024-10-16',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-JH',
@@ -389,10 +400,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Jharkhand Mukti Morcha', 'Indian National Congress', 'Rashtriya Janata Dal'],
 		chief_minister: 'Hemant Soren',
 		event_date: '2024-07-04',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-KA',
@@ -403,12 +414,12 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		alliance: 'INDIA',
 		lead_party: 'Indian National Congress',
 		member_parties: ['Indian National Congress'],
-		chief_minister: 'Siddaramaiah',
-		event_date: '2023-05-20',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		chief_minister: 'D. K. Shivakumar',
+		event_date: '2026-06-03',
+		source_url: 'https://newsonair.gov.in/d-k-shivakumar-sworn-in-as-karnataka-chief-minister/',
+		source_org: 'Akashvani News',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-KL',
@@ -416,14 +427,15 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		name_local: 'केरल',
 		type: 'state',
 		status: 'active_coalition',
-		alliance: 'left',
-		lead_party: 'Communist Party of India (Marxist)',
-		member_parties: ['Communist Party of India (Marxist)', 'Communist Party of India', 'Kerala Congress (M)'],
-		chief_minister: 'Pinarayi Vijayan',
-		event_date: '2021-05-20',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		alliance: 'INDIA',
+		lead_party: 'Indian National Congress',
+		member_parties: ['Indian National Congress', 'Indian Union Muslim League', 'Kerala Congress (Joseph)', 'Revolutionary Socialist Party', 'Kerala Congress (Jacob)', 'Communist Marxist Party'],
+		chief_minister: 'V. D. Satheesan',
+		event_date: '2026-05-18',
+		source_url: 'https://www.prd.kerala.gov.in/index.php/en/council-of-ministers',
+		source_org: 'Information and Public Relations Department, Kerala',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
+		additional_sources: [{ label: 'Swearing-in report', url: 'https://newsonair.gov.in/congress-leader-v-d-satheesan-takes-oath-as-keralam-cm-along-with-20-cabinet-ministers/' }],
 		confidence: 'pending'
 	},
 	{
@@ -437,8 +449,8 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: [],
 		chief_minister: null,
 		event_date: '2019-10-31',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: unionTerritoriesUrl,
+		source_org: 'Ministry of Home Affairs',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
 		confidence: 'verified'
 	},
@@ -453,8 +465,8 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: [],
 		chief_minister: null,
 		event_date: '1956-11-01',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: unionTerritoriesUrl,
+		source_org: 'Ministry of Home Affairs',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
 		confidence: 'verified'
 	},
@@ -469,10 +481,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Mohan Yadav',
 		event_date: '2023-12-13',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-MH',
@@ -485,10 +497,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party', 'Shiv Sena', 'Nationalist Congress Party'],
 		chief_minister: 'Devendra Fadnavis',
 		event_date: '2024-12-05',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-MN',
@@ -501,10 +513,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Yumnam Khemchand Singh',
 		event_date: '2026-02-04',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-ML',
@@ -517,10 +529,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['National People’s Party', 'United Democratic Party', 'Bharatiya Janata Party'],
 		chief_minister: 'Conrad Kongkal Sangma',
 		event_date: '2023-03-07',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-MZ',
@@ -533,10 +545,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Zoram People’s Movement'],
 		chief_minister: 'Lalduhoma',
 		event_date: '2023-12-08',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-NL',
@@ -549,10 +561,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Nationalist Democratic Progressive Party', 'Bharatiya Janata Party'],
 		chief_minister: 'Neiphiu Rio',
 		event_date: '2023-03-07',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-OR',
@@ -565,10 +577,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Mohan Charan Majhi',
 		event_date: '2024-06-12',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-PY',
@@ -580,9 +592,9 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		lead_party: 'All India N.R. Congress',
 		member_parties: ['All India N.R. Congress', 'Bharatiya Janata Party'],
 		chief_minister: 'N. Rangaswamy',
-		event_date: '2021-05-07',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		event_date: '2026-05-13',
+		source_url: 'https://info.py.gov.in/photo-gallery',
+		source_org: 'Department of Information and Publicity, Puducherry',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
 		confidence: 'pending'
 	},
@@ -597,10 +609,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Aam Aadmi Party'],
 		chief_minister: 'Bhagwant Singh Mann',
 		event_date: '2022-03-16',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-RJ',
@@ -613,10 +625,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Bhajanlal Sharma',
 		event_date: '2023-12-15',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-SK',
@@ -629,10 +641,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Sikkim Krantikari Morcha'],
 		chief_minister: 'Prem Singh Tamang',
 		event_date: '2024-06-10',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-TN',
@@ -640,14 +652,16 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		name_local: 'तमिलनाडु',
 		type: 'state',
 		status: 'active_coalition',
-		alliance: 'INDIA',
-		lead_party: 'Dravida Munnetra Kazhagam',
-		member_parties: ['Dravida Munnetra Kazhagam', 'Indian National Congress', 'Communist Party of India (Marxist)', 'Communist Party of India'],
-		chief_minister: 'M. K. Stalin',
-		event_date: '2021-05-07',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		alliance: 'regional',
+		lead_party: 'Tamilaga Vettri Kazhagam',
+		member_parties: ['Tamilaga Vettri Kazhagam', 'Indian National Congress', 'Viduthalai Chiruthaigal Katchi', 'Indian Union Muslim League'],
+		chief_minister: 'C. Joseph Vijay',
+		event_date: '2026-05-10',
+		source_url: 'https://newsonair.gov.in/2-more-ministers-to-be-inducted-in-joseph-vijay-led-tamil-nadu-govt/',
+		source_org: 'Akashvani News',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
+		review_note: 'TVK-led regional coalition; national alliance affiliation is not established by the cabinet reports. Supporting parties without cabinet posts are not listed as ministers.',
+		additional_sources: [{ label: 'Official oath and portfolios', url: 'https://cdnbbsr.s3waas.gov.in/s30d73a25092e5c1c9769a9f3255caa65a/uploads/2026/05/20260517931392791.pdf' }, { label: 'Congress cabinet induction', url: 'https://newsonair.gov.in/hi/tamil-nadu-chief-minister-c-joseph-vijay-will-expand-his-cabinet-today/' }],
 		confidence: 'pending'
 	},
 	{
@@ -661,10 +675,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Indian National Congress'],
 		chief_minister: 'A. Revanth Reddy',
 		event_date: '2023-12-07',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-TR',
@@ -677,10 +691,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Manik Saha',
 		event_date: '2023-03-08',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-UT',
@@ -693,10 +707,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Pushkar Singh Dhami',
 		event_date: '2022-03-23',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-UP',
@@ -709,10 +723,10 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		member_parties: ['Bharatiya Janata Party'],
 		chief_minister: 'Yogi Adityanath',
 		event_date: '2022-03-25',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		source_url: nationalChiefMinistersUrl,
+		source_org: 'National Portal of India (chief minister roster)',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
-		confidence: 'verified'
+		confidence: 'pending'
 	},
 	{
 		id: 'IN-WB',
@@ -720,13 +734,13 @@ export const STATE_GOVERNANCE_RECORDS: StateGovernanceRecord[] = [
 		name_local: 'पश्चिम बंगाल',
 		type: 'state',
 		status: 'active_majority',
-		alliance: 'regional',
-		lead_party: 'All India Trinamool Congress',
-		member_parties: ['All India Trinamool Congress'],
-		chief_minister: 'Mamata Banerjee',
-		event_date: '2021-05-05',
-		source_url: britannicaChiefMinistersUrl,
-		source_org: 'Encyclopaedia Britannica',
+		alliance: 'NDA',
+		lead_party: 'Bharatiya Janata Party',
+		member_parties: ['Bharatiya Janata Party'],
+		chief_minister: 'Suvendu Adhikari',
+		event_date: '2026-05-09',
+		source_url: 'https://wb.gov.in/government-meet-the-chief-minister.aspx',
+		source_org: 'Government of West Bengal',
 		last_verified: STATE_GOVERNANCE_DATA_AS_OF,
 		confidence: 'pending'
 	}
@@ -762,7 +776,7 @@ export function getStateGovernanceRows(record: StateGovernanceRecord) {
 		{ field: 'chief_minister', label: 'Chief Minister', value: record.chief_minister ?? 'No Chief Minister' },
 		{ field: 'event_date', label: 'Event date', value: record.event_date },
 		{ field: 'source', label: 'Source', value: record.source_org },
-		{ field: 'last_verified', label: 'Last verified', value: record.last_verified }
+		{ field: 'last_verified', label: record.type === 'ut_without_assembly' ? 'Administration reviewed' : 'Roster reviewed', value: record.last_verified }
 	] satisfies Array<{ field: StateGovernanceDisplayField; label: string; value: string }>;
 }
 

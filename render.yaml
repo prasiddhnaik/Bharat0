@@ -3,20 +3,25 @@ services:
     name: bharatzero
     runtime: node
     plan: starter
-    buildCommand: npm ci && npm run db:generate && npm run build
-    preDeployCommand: npm run db:push
-    startCommand: npm run start
+    region: singapore
+    buildCommand: corepack enable && corepack prepare pnpm@10.12.1 --activate && pnpm install --frozen-lockfile && pnpm run db:generate && pnpm run build
+    preDeployCommand: pnpm run db:deploy
+    startCommand: pnpm run start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "8080"
       - key: DATABASE_URL
         sync: false
       - key: GEMMA_API_KEY
         sync: false
-      - key: AI_ANALYSIS_PROVIDER
-        value: gemma
       - key: GEMMA_MODEL
         value: gemma-4-31b-it
       - key: GEMMA_BASE_URL
         value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: AI_ANALYSIS_PROVIDER
+        value: gemma

@@ -3,7 +3,7 @@ import { parseLanguage, type Language } from './localization';
 import { isPrimeMinisterFilter, type PrimeMinisterFilter } from './prime-ministers';
 import type { BillStage, House, SectionId } from './types';
 
-export const DEFAULT_DASHBOARD_DATE = '2026-04-25';
+export const DEFAULT_DASHBOARD_DATE = '';
 export const DEFAULT_BILLS_PAGE_SIZE = 60;
 
 export type DashboardFilters = {
@@ -31,11 +31,13 @@ export function parseDashboardFilters(searchParams: URLSearchParams): DashboardF
 	const statusParam = searchParams.get('status');
 	const primeMinisterParam = searchParams.get('pm');
 	const pageSize = Math.min(parsePositiveInteger(searchParams.get('pageSize'), DEFAULT_BILLS_PAGE_SIZE), 100);
+	const date = searchParams.get('date') ?? '';
+	const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
 
 	return {
 		section: isSectionId(sectionParam) ? sectionParam : 'overview',
 		house: isHouse(houseParam) ? houseParam : 'all',
-		date: searchParams.get('date') ?? DEFAULT_DASHBOARD_DATE,
+		date: validDate ? date : DEFAULT_DASHBOARD_DATE,
 		status: isBillStage(statusParam) ? statusParam : 'all',
 		area: searchParams.get('area') ?? 'all',
 		source: searchParams.get('source') ?? 'all',

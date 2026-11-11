@@ -1,5 +1,7 @@
 import type { House, SectionId, SittingDay, TimelineEvent } from './types';
 import type { Language } from './localization';
+import type { DashboardFilters } from './dashboard-filters';
+import { hrefForSection } from './navigation-links';
 
 export type TimelineDateRailItem = {
 	date: string;
@@ -21,6 +23,7 @@ type BuildTimelineDateRailInput = {
 	house: House | 'all';
 	section: SectionId;
 	language: Language;
+	filters?: DashboardFilters;
 };
 
 function matchesHouse(house: House | 'all', itemHouse: House): boolean {
@@ -43,7 +46,8 @@ export function buildTimelineDateRail({
 	selectedDate,
 	house,
 	section,
-	language
+	language,
+	filters
 }: BuildTimelineDateRailInput): TimelineDateRailItem[] {
 	const dates = new Set<string>();
 	const eventCountsByDate = new Map<string, number>();
@@ -63,13 +67,16 @@ export function buildTimelineDateRail({
 		}
 	}
 
-	return [...dates].sort((left, right) => right.localeCompare(left)).map((date) => {
+	const sortedDates = [...dates].sort((left, right) => right.localeCompare(left));
+	const selectedIndex = Math.max(0, sortedDates.findIndex((date) => date <= selectedDate));
+	const start = Math.max(0, selectedIndex - 5);
+	return sortedDates.slice(start, start + 15).map((date) => {
 		return {
 			date,
 			selected: date === selectedDate,
 			eventCount: eventCountsByDate.get(date) ?? 0,
 			sittingCount: sittingCountsByDate.get(date) ?? 0,
-			href: buildDateHref({ section, date, house, language })
+			href: filters ? hrefForSection(filters, section, { date, page: '1' }) : buildDateHref({ section, date, house, language })
 		};
 	});
 }

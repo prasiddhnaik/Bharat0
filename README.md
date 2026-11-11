@@ -101,19 +101,19 @@ Never commit `.env`, `.env.local`, or real API keys.
 Install dependencies:
 
 ```bash
-npm install
+pnpm install --frozen-lockfile
 ```
 
 Generate the Prisma client:
 
 ```bash
-npm run db:generate
+pnpm run db:generate
 ```
 
 Start the development server:
 
 ```bash
-npm run dev -- --host 127.0.0.1 --port 5173
+pnpm run dev --host 127.0.0.1 --port 5173
 ```
 
 Open:
@@ -133,14 +133,14 @@ docker compose up -d
 Push the schema and seed data:
 
 ```bash
-npm run db:push
-npm run db:seed
+pnpm run db:push
+pnpm run db:seed
 ```
 
 Verify database access:
 
 ```bash
-npm run verify:db
+pnpm run verify:db
 ```
 
 ## Neon PostgreSQL
@@ -148,17 +148,17 @@ npm run verify:db
 Set `DATABASE_URL` to the Neon connection string, then run:
 
 ```bash
-npm run db:generate
-npm run db:push
-npm run db:seed
+pnpm run db:generate
+pnpm run db:push
+pnpm run db:seed
 ```
 
 Load additional generated historical data:
 
 ```bash
-npm run db:upsert:prs
-npm run db:upsert:pdl-pre2004
-npx tsx scripts/upsert-prime-minister-data.ts
+pnpm run db:upsert:prs
+pnpm run db:upsert:pdl-pre2004
+pnpm exec tsx scripts/upsert-prime-minister-data.ts
 ```
 
 The PM data upsert writes:
@@ -168,14 +168,30 @@ The PM data upsert writes:
 
 The PDL upsert replaces prior `pdl-*` records before inserting the regenerated historical slice.
 
+## Weekly Automatic Updates
+
+The GitHub Actions workflow runs every Monday at **09:00 IST** (03:30 UTC). It refreshes current-term bills and Acts, the 18th Lok Sabha government-bill proceedings index, the newest two Rajya Sabha question sessions, and the existing 18 OGD catalogs. The job uses the repository's `DATABASE_URL` Actions secret and the live Mumbai OGD metadata endpoint.
+
+Run the same pipeline locally:
+
+```bash
+pnpm run refresh:data
+pnpm run refresh:data --source=catalogs
+pnpm run verify:refresh
+```
+
+The source selectors are `bills`, `debates`, `questions`, and `catalogs`. Omit the selector to run all sources. Manual runs are also available in GitHub Actions. Each source validates its snapshot before applying changes, preserves existing records on failure, and stores its actual check and source dates. Shared database locks prevent concurrent imports across repositories. Workflow snapshots and run summaries are retained for 30 days.
+
+The [approved design](docs/automatic-data-refresh-design.html) and [implementation plan](docs/automatic-data-refresh-plan.html) describe the supported coverage.
+
 ## Data Sync Scripts
 
 Regenerate generated datasets:
 
 ```bash
-npm run sync:sansad
-npm run sync:prs
-npm run sync:pdl-pre2004
+pnpm run sync:sansad
+pnpm run sync:prs
+pnpm run sync:pdl-pre2004
 ```
 
 The PDL script currently searches Parliament Digital Library from `1947-2003` and emits:
@@ -229,37 +245,37 @@ curl "http://127.0.0.1:5173/api/prime-ministers/nehru"
 Core checks:
 
 ```bash
-npm run check
-npm run verify:repositories
-npm run verify:prisma-mappers
-npm run verify:prisma-repository
-npm run verify:timeline
-npm run verify:localization
+pnpm run check
+pnpm run verify:repositories
+pnpm run verify:prisma-mappers
+pnpm run verify:prisma-repository
+pnpm run verify:timeline
+pnpm run verify:localization
 ```
 
 Data/API checks:
 
 ```bash
-npx tsx scripts/verify-pm-data-api.ts
-npx tsx scripts/verify-prime-minister-data-db.ts
-npx tsx scripts/verify-prime-minister-profiles.ts
-npx tsx scripts/verify-house-power.ts
-npx tsx scripts/verify-navigation-links.ts
-npx tsx scripts/verify-older-prime-minister-coverage.ts
+pnpm exec tsx scripts/verify-pm-data-api.ts
+pnpm exec tsx scripts/verify-prime-minister-data-db.ts
+pnpm exec tsx scripts/verify-prime-minister-profiles.ts
+pnpm exec tsx scripts/verify-house-power.ts
+pnpm exec tsx scripts/verify-navigation-links.ts
+pnpm exec tsx scripts/verify-older-prime-minister-coverage.ts
 ```
 
 Source discovery checks:
 
 ```bash
-npm run discover:sources
-npm run verify:source-discovery
-npm run verify:ingestion
+pnpm run discover:sources
+pnpm run verify:source-discovery
+pnpm run verify:ingestion
 ```
 
 Production smoke check:
 
 ```bash
-npm run verify:production
+pnpm run verify:production
 ```
 
 ## Production Build
@@ -267,13 +283,13 @@ npm run verify:production
 Build:
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 Run production server:
 
 ```bash
-HOST=127.0.0.1 PORT=5174 npm run start
+HOST=127.0.0.1 PORT=5174 pnpm run start
 ```
 
 Health check:
@@ -292,15 +308,15 @@ The repo includes two deployment paths:
 For a single full-stack Node deployment:
 
 ```text
-Build command: npm ci && npm run db:generate && npm run build
-Start command: npm run start
+Build command: corepack enable && corepack prepare pnpm@10.12.1 --activate && pnpm install --frozen-lockfile && pnpm run db:generate && pnpm run build
+Start command: pnpm run start
 Health path: /api/health
 ```
 
 For Vercel static hosting:
 
 ```text
-Build command: npm run db:generate && npm run build
+Build command: pnpm run db:generate && pnpm run build
 Output directory: dist
 API rewrite: configured in vercel.json
 ```

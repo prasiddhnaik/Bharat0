@@ -6,6 +6,7 @@ import {
 	STATE_GOVERNANCE_STATUS_VISUALS,
 	STATE_GOVERNANCE_VISUAL_PALETTE,
 	getStateGovernanceVisual,
+	isGovernanceReviewStale,
 	stateGovernanceById,
 	type GovernanceAlliance,
 	type GovernanceConfidence,
@@ -74,12 +75,6 @@ const expectedTooltipFields = [
 	'last_verified'
 ];
 
-function daysSince(value: string) {
-	const date = new Date(`${value}T00:00:00.000Z`);
-	const now = new Date();
-	return Math.floor((now.getTime() - date.getTime()) / 86_400_000);
-}
-
 async function assertSourceUrls() {
 	const failures: string[] = [];
 	for (const record of STATE_GOVERNANCE_RECORDS) {
@@ -102,14 +97,14 @@ assert.deepEqual(
 	'expected map features to match official ISO state/UT ids'
 );
 assert.deepEqual(EXPECTED_STATE_GOVERNANCE_FIELD_ORDER, expectedTooltipFields, 'expected tooltip and table field order to stay locked');
-assert.equal(daysSince(STATE_GOVERNANCE_DATA_AS_OF) <= 90, true, 'expected state governance data_as_of to be within 90 days');
+assert.equal(isGovernanceReviewStale(STATE_GOVERNANCE_DATA_AS_OF), false, 'expected state governance review to be within 90 days and not in the future');
 
 for (const record of STATE_GOVERNANCE_RECORDS) {
 	assert.ok(expectedIds.includes(record.id), `${record.id} must be an official ISO 3166-2:IN id`);
 	assert.ok(statuses.has(record.status), `${record.id} has invalid status ${record.status}`);
 	assert.ok(alliances.has(record.alliance), `${record.id} has invalid alliance ${record.alliance}`);
 	assert.ok(confidences.has(record.confidence), `${record.id} has invalid confidence ${record.confidence}`);
-	assert.equal(daysSince(record.last_verified) <= 90, true, `${record.id} last_verified is older than 90 days`);
+	assert.equal(isGovernanceReviewStale(record.last_verified), false, `${record.id} review is overdue, invalid or in the future`);
 	assert.equal(Boolean(record.name_en), true, `${record.id} needs an English name`);
 	assert.equal(Boolean(record.name_local), true, `${record.id} needs a local/Hindi label`);
 	assert.equal(Boolean(record.event_date), true, `${record.id} needs an event date`);

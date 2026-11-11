@@ -1,0 +1,11 @@
+{
+	"extends": "./tsconfig.json",
+	"include": [
+		"scripts/refresh-data.ts",
+		"scripts/setup-ingestion.ts",
+		"scripts/sync-live-*.ts",
+		"scripts/verify-refresh*.ts",
+		"scripts/verify-live-questions.ts",
+		"scripts/verify-ogd-catalogs.ts"
+	]
+}

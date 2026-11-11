@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 type DiscoveryPayload = {
 	generatedAt: string;
 	results: Array<{
+		ok: boolean;
 		id: string;
 		name: string;
 		finalUrl: string | null;
@@ -28,10 +29,9 @@ function hasFlag(name: string) {
 	return process.argv.includes(name);
 }
 
-function dateFromDataGov(value: string | null | undefined, fallback: string) {
-	if (!value) return fallback.slice(0, 10);
+function dateFromDataGov(value: string | null | undefined) {
+	if (!value || !/^\d{2}\/\d{2}\/\d{4}$/.test(value)) throw new Error('OGD catalog has no valid update date; retaining existing records.');
 	const [day, month, year] = value.split('/');
-	if (!day || !month || !year) return fallback.slice(0, 10);
 	return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
@@ -53,15 +53,14 @@ async function main() {
 	const inputPath = resolve(process.cwd(), INPUT_PATH);
 	const outputPath = resolve(process.cwd(), OUTPUT_PATH);
 	const payload = JSON.parse(await readFile(inputPath, 'utf8')) as DiscoveryPayload;
-	const fallbackDate = payload.generatedAt;
-	const dataGovResults = payload.results.filter((result) => result.finalUrl?.includes('data.gov.in'));
+	const dataGovResults = payload.results.filter((result) => result.ok && result.finalUrl?.includes('data.gov.in'));
 	const questionCatalogs = dataGovResults.filter((result) => result.id.startsWith('data-gov-rs-questions-session-'));
 	const debateCatalogs = dataGovResults.filter((result) => result.outputs.includes('debates'));
 
 	const questionItems = questionCatalogs.map((result) => {
 		const catalog = result.metadata?.dataGovCatalog;
 		const session = sessionFromId(result.id);
-		const date = dateFromDataGov(catalog?.updatedDate, fallbackDate);
+		const date = dateFromDataGov(catalog?.updatedDate);
 		return {
 			id: `${result.id}-catalog`,
 			number: `Session ${session}`,
@@ -77,7 +76,7 @@ async function main() {
 
 	const debateItems = debateCatalogs.map((result) => {
 		const catalog = result.metadata?.dataGovCatalog;
-		const date = dateFromDataGov(catalog?.updatedDate, fallbackDate);
+		const date = dateFromDataGov(catalog?.updatedDate);
 		const isLokSabha = result.id.includes('ls-');
 		return {
 			id: `${result.id}-catalog`,

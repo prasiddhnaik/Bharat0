@@ -133,6 +133,7 @@ const answerStatusFromPrisma = {
 type PrismaDate = Date | string;
 
 type PrismaBill = {
+	updated_at?: Date | string;
 	id: string;
 	title_en: string;
 	title_hi: string;

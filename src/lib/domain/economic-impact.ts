@@ -84,7 +84,8 @@ const impactRules: EconomicImpactRule[] = [
 
 export function getEconomicImpactProfile(bill: Bill, analysisDate = new Date().toISOString().slice(0, 10)): EconomicImpactProfile {
 	const ministry = normalizeMinistry(bill.ministry);
-	const combinedText = `${bill.title_en} ${bill.summary ?? ''} ${ministry}`.toLowerCase();
+	const hasUsableSummary = Boolean(bill.summary?.trim()) && !generatedSummaryPattern.test(bill.summary.trim());
+	const combinedText = `${bill.title_en} ${hasUsableSummary ? bill.summary : ''} ${ministry}`.toLowerCase();
 	const selected = impactRules.find((rule) => rule.match.test(combinedText)) ?? {
 		category: `General ${ministry} policy`,
 		channels: ['public spending', 'compliance costs', 'investment incentives', 'productivity', `demand in ${ministry}`],
@@ -93,7 +94,6 @@ export function getEconomicImpactProfile(bill: Bill, analysisDate = new Date().t
 	};
 	const ageYears = getBillAgeYears(bill.introduced_on, analysisDate);
 	const isImplementationStage = bill.current_stage === 'act_published' || bill.current_stage === 'assented';
-	const hasUsableSummary = Boolean(bill.summary?.trim()) && !generatedSummaryPattern.test(bill.summary.trim());
 	const confidence = hasUsableSummary ? 'medium' : 'low';
 	const timingWindow = isImplementationStage
 		? 'Implementation read; use actual notifications, spending, compliance, and sector data rather than predicted effects.'
@@ -117,6 +117,9 @@ export function getEconomicImpactProfile(bill: Bill, analysisDate = new Date().t
 
 export function formatEconomicImpactForPanel(bill: Bill, analysisDate?: string) {
 	const profile = getEconomicImpactProfile(bill, analysisDate);
+	if (profile.confidence === 'low') {
+		return 'Insufficient evidence to assess economic impact. This record contains title, ministry and legislative status metadata; it does not establish spending, compliance costs, sector effects or GDP direction. Review the bill text, fiscal memorandum and implementation data before assessing impact.';
+	}
 	return [
 		`${profile.timingWindow} Stage read: ${profile.stageReadiness}`,
 		`Transmission: ${formatList(profile.primaryChannels)}.`,

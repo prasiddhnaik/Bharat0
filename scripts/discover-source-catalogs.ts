@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { fetchResponse, runCli } from './lib/refresh';
 import * as cheerio from 'cheerio';
 import {
 	sourceDiscoveryTargets,
@@ -49,24 +50,8 @@ function discoveryUrlsFor(target: SourceDiscoveryTarget) {
 }
 
 async function fetchHtml(url: string) {
-	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-	try {
-		const response = await fetch(url, {
-			headers: {
-				accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-				'accept-language': 'en-IN,en;q=0.9',
-				'user-agent': USER_AGENT
-			},
-			redirect: 'follow',
-			signal: controller.signal
-		});
-		const html = await response.text();
-		return { response, html };
-	} finally {
-		clearTimeout(timeout);
-	}
+	const response = await fetchResponse(url, { headers: { accept: 'text/html,application/xhtml+xml', 'accept-language': 'en-IN,en;q=0.9', 'user-agent': USER_AGENT } });
+	return { response, html: await response.text() };
 }
 
 async function inspectTarget(target: SourceDiscoveryTarget): Promise<SourceDiscoveryResult> {
@@ -113,7 +98,7 @@ async function inspectTarget(target: SourceDiscoveryTarget): Promise<SourceDisco
 	}
 }
 
-async function inspectTargets(targets: SourceDiscoveryTarget[]) {
+export async function inspectTargets(targets: SourceDiscoveryTarget[]) {
 	const results: SourceDiscoveryResult[] = [];
 	let nextIndex = 0;
 
@@ -148,7 +133,4 @@ async function main() {
 	console.log(JSON.stringify(payload, null, 2));
 }
 
-main().catch((error) => {
-	console.error(error);
-	process.exit(1);
-});
+runCli(import.meta.url, main);

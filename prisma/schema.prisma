@@ -7,6 +7,18 @@ datasource db {
   provider = "postgresql"
 }
 
+model IngestionRun {
+  id           String   @id @default(cuid())
+  source       String
+  status       String
+  started_at   DateTime @default(now())
+  completed_at DateTime?
+  summary      Json?
+  error        String?
+
+  @@index([source, started_at(sort: Desc)])
+}
+
 enum House {
   LOK_SABHA
   RAJYA_SABHA

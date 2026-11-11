@@ -5,40 +5,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Type checking (no test framework — this is the primary correctness check)
-npm run check
+# Type checking and app/ingestion regression tests
+pnpm run check
+pnpm run verify:app
 
 # Development server (API + frontend on same port via Vite SSR middleware)
-npm run dev:local          # http://127.0.0.1:5173
+pnpm run dev:local          # http://127.0.0.1:5173
 
 # Production build (two outputs: dist/ for static, dist-server/ for Node server)
-npm run build
-npm run start              # serves dist/ + API on $HOST:$PORT
+pnpm run build
+pnpm run start              # serves dist/ + API on $HOST:$PORT
 
 # Database
-npm run db:generate        # regenerate Prisma client after schema changes
-npm run db:push            # push schema to DB (no migration history)
-npm run db:seed            # load generated seed data
-npm run db:setup           # generate + push + seed + verify
+pnpm run db:generate        # regenerate Prisma client after schema changes
+pnpm run db:push            # push schema to DB (no migration history)
+pnpm run db:seed            # load generated seed data
+pnpm run db:setup           # generate + push + seed + verify
 
 # Data pipeline verification (run after any data/repository changes)
-npm run verify:data-pipeline   # comprehensive: sources, generated files, repos, mappers, AI, debates
-npm run verify:repositories    # seed + Prisma repository smoke checks
-npm run verify:prisma-mappers  # domain ↔ Prisma enum/type mapping coverage
-npm run verify:prisma-repository
-npm run verify:ai-analysis
+pnpm run verify:data-pipeline   # comprehensive: sources, generated files, repos, mappers, AI, debates
+pnpm run verify:repositories    # seed + Prisma repository smoke checks
+pnpm run verify:prisma-mappers  # domain ↔ Prisma enum/type mapping coverage
+pnpm run verify:prisma-repository
+pnpm run verify:ai-analysis
 
 # Upsert additional historical data into DB
-npm run db:upsert:all          # PRS + PDL + data.gov + debates + PM data
-npm run db:upsert:pm           # PrimeMinisterProfile + LokSabhaPowerSnapshot only
+pnpm run db:upsert:all          # PRS + PDL + data.gov + debates + PM data
+pnpm run db:upsert:pm           # PrimeMinisterProfile + LokSabhaPowerSnapshot only
 
 # Regenerate generated TypeScript datasets (source-controlled)
-npm run sync:sansad
-npm run sync:prs
-npm run sync:pdl-pre2004
+pnpm run sync:sansad
+pnpm run sync:prs
+pnpm run sync:pdl-pre2004
 ```
 
-No Jest/Vitest — correctness is validated through `npm run check` (tsc) and the `verify:*` scripts.
+Correctness is validated through `pnpm run check` (tsc), Node test-runner regression tests in `verify:app` / `verify:refresh`, and the remaining `verify:*` scripts. Use pnpm 10.12.1 and Node 22.
 
 ## Architecture
 
@@ -46,7 +47,7 @@ No Jest/Vitest — correctness is validated through `npm run check` (tsc) and th
 
 In **development**, Vite serves both the React app and API routes. The `bharatZeroApiPlugin` in `vite.config.ts` intercepts `/api/*` requests and SSR-loads `src/lib/server/api/bharatzero-api.ts` on each request.
 
-In **production**, `npm run build` emits two bundles:
+In **production**, `pnpm run build` emits two bundles:
 - `dist/` — static frontend (Vite default build)
 - `dist-server/server.js` — Node HTTP server SSR bundle (`vite build --ssr server.ts`)
 
@@ -92,10 +93,10 @@ Provider is `gemma` (Gemini/OpenAI-compatible endpoint). `gemma-bill-analysis.ts
 
 ### Prisma
 
-Client is generated into `src/generated/prisma/` (non-default location, set in `prisma/schema.prisma` generator block). Run `npm run db:generate` after any schema edit. `prisma.config.ts` at the repo root configures `tsx` as the migration engine runner.
+Client is generated into `src/generated/prisma/` (non-default location, set in `prisma/schema.prisma` generator block). Run `pnpm run db:generate` after any schema edit. `prisma.config.ts` at the repo root configures `tsx` as the migration engine runner.
 
 ### Known structural oddities
 
 - SvelteKit route files remain in `src/routes/` but are vestigial — the actual app is `src/App.tsx` (React 19).
-- The `questions` table has schema and UI support but generated rows are not yet populated.
-- Node 22+ is required (`"engines": { "node": ">=22" }`); Vercel runs Node 24, Dockerfile pins to Node 22.
+- Weekly ingestion imports individual Rajya Sabha questions from the newest two sessions; OGD catalog references remain separate metadata coverage.
+- Node 22 is required for local and GitHub execution; the production build emits both client and Node server bundles.

@@ -1,32 +1,60 @@
-name: sync-live-bills
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+name: Weekly data refresh
 
 on:
   schedule:
-    - cron: '0 6 * * *'
-  workflow_dispatch: {}
+    # Monday 03:30 UTC = Monday 09:00 IST; once per week.
+    - cron: '30 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Source to refresh
+        type: choice
+        options: [all, bills, debates, questions, catalogs]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bharatzero-data-refresh
+  cancel-in-progress: false
 
 jobs:
-  sync:
+  refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      OGD_CATALOG_ENDPOINT: https://bharatzero.vercel.app/api/ogd-catalogs
+      REFRESH_SOURCE: ${{ inputs.source || 'all' }}
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - run: |
-          corepack enable
-          corepack prepare pnpm@10.12.1 --activate
-
-      - run: pnpm install --no-frozen-lockfile
-
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: pnpm run db:generate
-
-      - run: pnpm run sync:live-bills
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - run: pnpm run verify:refresh
+      - name: Ensure ingestion history table
+        run: pnpm run db:ingestion
+      - name: Refresh official data
+        run: |
+          if [ "$REFRESH_SOURCE" = all ]; then
+            pnpm run refresh:data
+          else
+            pnpm run refresh:data --source="$REFRESH_SOURCE"
+          fi
+      - name: Retain source snapshots and run summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-refresh-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/data-refresh-*/
+          if-no-files-found: ignore
+          retention-days: 30

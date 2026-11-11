@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { extname, join, normalize, resolve } from 'node:path';
 import { handleBharatZeroApi } from '$lib/server/api/bharatzero-api';
 import { createPrismaClient } from '$lib/server/db/prisma';
 
@@ -45,8 +45,7 @@ function resolveStaticPath(pathname: string) {
 	const normalizedPath = normalize(decodedPath).replace(/^(\.\.[/\\])+/, '');
 	const candidatePath = resolve(distDir, `.${normalizedPath}`);
 
-	const distDirSafe = distDir.endsWith(sep) ? distDir : distDir + sep;
-	if (!candidatePath.startsWith(distDirSafe) && candidatePath !== distDir) {
+	if (!candidatePath.startsWith(distDir)) {
 		return null;
 	}
 
@@ -77,14 +76,7 @@ async function handleHealth(response: ServerResponse) {
 	}
 }
 
-function setSecurityHeaders(response: ServerResponse) {
-	response.setHeader('x-content-type-options', 'nosniff');
-	response.setHeader('x-frame-options', 'DENY');
-	response.setHeader('referrer-policy', 'strict-origin-when-cross-origin');
-}
-
 async function handleRequest(request: IncomingMessage, response: ServerResponse) {
-	setSecurityHeaders(response);
 	const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
 
 	if (url.pathname === '/api/health') {

@@ -4,6 +4,7 @@ import { createLegislativeRepository } from '../src/lib/server/repositories/legi
 const billCountWhereClauses: unknown[] = [];
 let debateFindManyCalls = 0;
 let debateCountCalls = 0;
+const committeeFindWhere: unknown[] = [];
 
 const fakePrisma = {
 	bill: {
@@ -77,6 +78,7 @@ const fakePrisma = {
 		}
 	},
 	timelineEvent: {
+		async count() { return 1; },
 		async findMany() {
 			return [
 				{
@@ -94,8 +96,8 @@ const fakePrisma = {
 		}
 	},
 	sittingDay: { async findMany() { return []; } },
-	committee: { async findMany() { return []; } },
-	question: { async findMany() { return []; } },
+	committee: { async findMany(args: { where: unknown }) { committeeFindWhere.push(args.where); return []; } },
+	question: { async findMany() { return []; }, async count() { return 0; }, async groupBy() { return []; } },
 	debate: {
 		async findMany() {
 			debateFindManyCalls += 1;
@@ -243,5 +245,11 @@ const allDebatesDashboard = await repository.getDashboardData({
 });
 
 assert.equal(allDebatesDashboard.pagination.totalItems, allDebatesDashboard.debates.length, 'expected Debates pagination total to describe debate records');
+
+const sourcesSearch = await repository.getDashboardData({ ...allDebatesDashboard.filters, section: 'sources', query: 'xxxxxxxx' });
+assert.equal(sourcesSearch.sources.length, 0, 'source search must exclude nonmatching source families');
+await repository.getDashboardData({ ...allDebatesDashboard.filters, section: 'committees', query: 'finance', house: 'lok-sabha' });
+assert.match(JSON.stringify(committeeFindWhere.at(-1)), /finance/, 'committee query must reach the database');
+assert.match(JSON.stringify(committeeFindWhere.at(-1)), /LOK_SABHA/, 'committee House must reach the database');
 
 console.log('Prisma repository contract checks passed using a fake Prisma client.');

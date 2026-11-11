@@ -5,11 +5,13 @@ import {
 	EXPECTED_STATE_GOVERNANCE_FIELD_ORDER,
 	STATE_GOVERNANCE_DATA_AS_OF,
 	STATE_GOVERNANCE_NEXT_REVIEW,
+	STATE_GOVERNANCE_REVIEW_NOTE,
 	STATE_GOVERNANCE_RECORDS,
 	STATE_GOVERNANCE_STATUS_VISUALS,
 	STATE_GOVERNANCE_VISUAL_PALETTE,
 	getStateGovernanceRows,
 	getStateGovernanceVisual,
+	isGovernanceReviewStale,
 	governanceAllianceLabels,
 	governanceStatusLabels,
 	stateGovernanceById,
@@ -141,12 +143,13 @@ export function StatesSection({ language, onNavigate }: StatesSectionProps) {
 function StateGovernanceBanner({ language, onNavigate }: { language: Language; onNavigate: (href: string) => void }) {
 	const stateCount = STATE_GOVERNANCE_RECORDS.filter((record) => record.type === 'state').length;
 	const utCount = STATE_GOVERNANCE_RECORDS.length - stateCount;
+	const stale = STATE_GOVERNANCE_RECORDS.some((record) => isGovernanceReviewStale(record.last_verified));
 	return (
 		<div className="order-1 rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] p-3 text-xs leading-5 text-[var(--bz-text-2)] shadow-sm lg:order-none">
 			<div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
 				<div className="grid gap-2 sm:grid-cols-3">
 					<div className="min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2">
-						<p className="bz-eyebrow text-[9.5px]">Data as of</p>
+						<p className="bz-eyebrow text-[9.5px]">Roster reviewed</p>
 						<p className="mt-1 font-semibold text-[var(--bz-text-1)]">{formatDate(STATE_GOVERNANCE_DATA_AS_OF)}</p>
 					</div>
 					<div className="min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2">
@@ -168,6 +171,8 @@ function StateGovernanceBanner({ language, onNavigate }: { language: Language; o
 					How this is classified
 				</a>
 			</div>
+			<p className="mt-3">{STATE_GOVERNANCE_REVIEW_NOTE}</p>
+			{stale && <p role="alert" className="mt-2 font-semibold text-[var(--bz-accent)]">Governance review is overdue. Treat this snapshot as historical until its sources are checked again.</p>}
 		</div>
 	);
 }
@@ -378,9 +383,11 @@ function StateGovernanceDetail({ record }: { record: StateGovernanceRecord }) {
 					</div>
 				</div>
 				<GovernanceFields record={record} compact />
+				{record.confidence !== 'verified' && <p className="mt-3 text-xs leading-5 text-[var(--bz-text-2)]">Classification provisional. {record.review_note ?? 'Chief minister roster reviewed; the complete current ministry and alliance classification still need confirmation.'}</p>}
 				<a className="mt-4 inline-flex w-full justify-center rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus" href={record.source_url} target="_blank" rel="noreferrer">
 					Open source
 				</a>
+				{record.additional_sources?.map((source) => <a key={source.url} className="mt-2 block text-xs text-[var(--bz-accent)] underline" href={source.url} target="_blank" rel="noreferrer">{source.label}</a>)}
 			</div>
 		</article>
 	);
@@ -473,6 +480,7 @@ function GovernanceFields({ record, compact = false, variant = 'tiles' }: { reco
 						<dt className="text-[9.5px] font-bold uppercase tracking-[0.07em] text-[var(--bz-text-3)]">{row.label}</dt>
 						<dd className={cx('mt-0.5 text-[11px] font-semibold text-[var(--bz-text-1)]', compact ? 'break-words' : 'truncate')} title={displayValue}>
 							{displayValue}
+							{row.field === 'last_verified' && <span className="mt-1 block text-[10px] font-normal">{isGovernanceReviewStale(record.last_verified) ? 'Review overdue' : record.confidence === 'verified' ? 'Administration checked' : 'Roster checked · classification provisional'}</span>}
 						</dd>
 					</div>
 				);
@@ -534,7 +542,7 @@ export function StateGovernanceMethodology({ language, onNavigate }: StatesSecti
 				<p className="bz-eyebrow">Source policy</p>
 				<h2 className="mt-2 text-lg font-semibold text-[var(--bz-text-1)]">Boundary and governance provenance</h2>
 				<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">
-					Map boundaries are self-hosted from {INDIA_STATE_MAP_SOURCE.org}. Governance rows use the visible source link on each record and are checked by the state-governance verifier.
+					Map boundaries are self-hosted from {INDIA_STATE_MAP_SOURCE.org}. Governance rows link to their evidence. Automated checks validate structure and review age; they do not certify political facts. {STATE_GOVERNANCE_REVIEW_NOTE}
 				</p>
 				<a className="mt-4 inline-flex rounded-md border border-[var(--bz-accent)] bg-[var(--bz-accent-2)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--bz-accent)] transition hover:bg-[var(--bz-accent)] hover:text-white bz-focus" href={INDIA_STATE_MAP_SOURCE.url} target="_blank" rel="noreferrer">
 					Open boundary source

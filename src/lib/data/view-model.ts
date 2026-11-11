@@ -50,7 +50,13 @@ function sortBillsByRecency(billList: Bill[]): Bill[] {
 	return [...billList].sort(compareBillRecency);
 }
 
-export function getDashboardData(filters: DashboardFilters) {
+export function getDashboardData(filters: DashboardFilters): ReturnType<typeof buildDashboardData> {
+	const result = buildDashboardData(filters);
+	const page = Math.min(filters.page, result.pagination.totalPages);
+	return page === filters.page ? result : buildDashboardData({ ...filters, page });
+}
+
+function buildDashboardData(filters: DashboardFilters) {
 	const query = filters.query.trim().toLowerCase();
 	const filteredBills: Bill[] = [];
 	const stageCountsMap = new Map<Bill['current_stage'], number>();
@@ -79,9 +85,9 @@ export function getDashboardData(filters: DashboardFilters) {
 			}
 		}
 
-		if (matchesHouse && matchesStatus && matchesArea && matchesSource && matchesPrimeMinister && matchesQuery) {
-			filteredBills.push(bill);
+		if (matchesHouse && matchesArea && matchesSource && matchesPrimeMinister && matchesQuery) {
 			stageCountsMap.set(bill.current_stage, (stageCountsMap.get(bill.current_stage) ?? 0) + 1);
+			if (matchesStatus) filteredBills.push(bill);
 		}
 	}
 
@@ -107,7 +113,9 @@ export function getDashboardData(filters: DashboardFilters) {
 			question.number.toLowerCase().includes(query) ||
 			question.ministry.toLowerCase().includes(query);
 
-		return matchesHouse && matchesSource && matchesQuery;
+		const matchesPrimeMinister = billDateMatchesPrimeMinisterTerm(question.date, filters.primeMinister);
+		const matchesArea = filters.area === 'all' || question.ministry === filters.area;
+		return matchesHouse && matchesSource && matchesQuery && matchesPrimeMinister && matchesArea;
 	});
 	const filteredDebates = debates
 		.filter((debate) => {
@@ -118,7 +126,11 @@ export function getDashboardData(filters: DashboardFilters) {
 				debate.title.toLowerCase().includes(query) ||
 				debate.summary.toLowerCase().includes(query);
 
-			return matchesHouse && matchesSource && matchesQuery;
+			const matchesPrimeMinister = billDateMatchesPrimeMinisterTerm(debate.date, filters.primeMinister);
+			const linkedBill = debate.related_bill_id ? billById.get(debate.related_bill_id) : null;
+			const matchesArea = filters.area === 'all' || linkedBill?.ministry === filters.area;
+			const matchesStatus = filters.status === 'all' || linkedBill?.current_stage === filters.status;
+			return matchesHouse && matchesSource && matchesQuery && matchesPrimeMinister && matchesArea && matchesStatus;
 		})
 		.sort((left, right) => right.date.localeCompare(left.date));
 	const filteredCommittees = committees.filter((committee) => {
@@ -159,16 +171,19 @@ export function getDashboardData(filters: DashboardFilters) {
 	const filteredEvents = timelineEvents.filter((event) => {
 		const matchesHouse = filters.house === 'all' || event.house === filters.house;
 		const relatedBill = event.related_bill_id ? billById.get(event.related_bill_id) ?? null : null;
-		const matchesStatus = filters.status === 'all' || (relatedBill ? relatedBill.current_stage === filters.status : true);
-		const matchesPrimeMinister = !relatedBill || billDateMatchesPrimeMinisterTerm(relatedBill.introduced_on, filters.primeMinister);
+		const matchesStatus = filters.status === 'all' || relatedBill?.current_stage === filters.status;
+		const matchesPrimeMinister = billDateMatchesPrimeMinisterTerm(event.date, filters.primeMinister);
 		const matchesQuery =
 			!query ||
 			event.title.toLowerCase().includes(query) ||
 			event.description.toLowerCase().includes(query) ||
 			(relatedBill ? filteredBillIds.has(relatedBill.id) : false);
 
-		return matchesHouse && matchesStatus && matchesPrimeMinister && matchesQuery;
-	});
+		const matchesArea = filters.area === 'all' || relatedBill?.ministry === filters.area;
+		return matchesHouse && matchesStatus && matchesPrimeMinister && matchesQuery && matchesArea && (!filters.date || event.date <= filters.date) && matchesSourceUrl(event.source_url, filters.source);
+	}).sort((left, right) => right.date.localeCompare(left.date));
+	const pageEvents = filters.section === 'overview' ? filteredEvents.slice(0, 12)
+		: filters.section === 'timeline' ? filteredEvents.slice(pageStart, pageStart + filters.pageSize) : filteredEvents;
 	const paginationTotalItems =
 		filters.section === 'acts'
 			? filteredActs.length
@@ -184,12 +199,13 @@ export function getDashboardData(filters: DashboardFilters) {
 								? filteredSources.length
 								: filteredBills.length;
 	const timelineDateRail = buildTimelineDateRail({
-		events: timelineEvents,
-		sittingDays,
+		events: pageEvents,
+		sittingDays: sittingDays.filter((day) => billDateMatchesPrimeMinisterTerm(day.date, filters.primeMinister) && (!filters.date || day.date <= filters.date)).sort((left, right) => right.date.localeCompare(left.date)).slice(0, 15),
 		selectedDate: filters.date,
 		house: filters.house,
 		section: filters.section,
-		language: filters.language
+		language: filters.language,
+		filters
 	});
 
 	return {
@@ -214,8 +230,8 @@ export function getDashboardData(filters: DashboardFilters) {
 		bills: pageBills,
 		allBills: bills,
 		billActions,
-		timelineEvents: filteredEvents,
-		timelineGroups: groupTimelineEventsByDate(filteredEvents),
+		timelineEvents: pageEvents,
+		timelineGroups: groupTimelineEventsByDate(pageEvents),
 		timelineDateRail,
 		allTimelineEvents: timelineEvents,
 		sittingDays,

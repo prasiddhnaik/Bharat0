@@ -1,387 +1,105 @@
-import type {
-	Bill,
-	BillAction,
-	BillStage,
-	BillType,
-	House,
-	TimelineEvent,
-	TimelineEventType
-} from '../src/lib/domain/types';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { createPrismaClient } from '../src/lib/server/db/prisma';
-import { assertEnv, safeDbUrl } from './lib/envCheck';
-import { parseFlags } from './lib/flags';
-import { makeLogger } from './lib/logger';
+import { BillStage, BillType, House, TimelineEventType } from '../src/generated/prisma/enums';
+import { loadRecentSansadBills, matchBillNumber, normalizeActions, normalizeAct, normalizeBill, normalizeTimelineEvents, type SansadBillsPayload, type SansadBillRecord } from '../src/lib/ingestion/sansad-bills';
+import { fetchJson, runCli } from './lib/refresh';
 
-const log = makeLogger('LIVE-BILLS');
-const flags = parseFlags(['dry-run', 'force-mirror']);
-assertEnv(['DATABASE_URL'], log);
-
-const CUTOFF_DATE = '2026-04-16';
-const SANSAD_BILLS_API_BASE = 'https://sansad.in/api_rs/legislation/getBills';
-const SANSAD_MAX_PAGES = 30;
-const FALLBACK_BILLS_DATASET = 'https://righttoinformation.wiki/static/data/bills.json';
-
-type SansadBillRecord = {
-	billNumber: string | null;
-	billName: string;
-	billType: string | null;
-	billCategory: string | null;
-	ministryName: string | null;
-	billYear: number | null;
-	billIntroducedInHouse: string | null;
-	billIntroducedDate: string | null;
-	billIntroducedFile: string | null;
-	billPassedInLSDate: string | null;
-	billPassedInLSFile: string | null;
-	billPassedInRSDate: string | null;
-	billPassedInRSFile: string | null;
-	billPassedInBothHousesFile: string | null;
-	reportPresentedDate: string | null;
-	reportFile: string | null;
-	referredToCommitteeDate: string | null;
-	actNo: string | null;
-	actYear: number | null;
-	billAssentedDate: string | null;
-	billGazettedFile: string | null;
-	status: string | null;
-	stages?: Array<[string, string, string | null]>;
-};
-
-type SansadPayload = {
-	meta?: { as_of?: string };
-	_metadata?: { currentPageNumber?: number; perPageSize?: number; totalElements?: number; totalPages?: number };
-	bills?: SansadBillRecord[];
-	records?: SansadBillRecord[];
-};
-
-function slugify(value: string): string {
-	return value
-		.replace(/^the\s+/i, '')
-		.replace(/,?\s*(19|20)\d{2}\.?$/i, '')
-		.replace(/[“”"'.]/g, '')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.slice(0, 120);
+const since = '2024-06-09';
+const artifactDir = `artifacts/data-refresh-${new Date().toISOString().slice(0, 10)}`;
+const date = (value: string) => new Date(`${value}T00:00:00+05:30`);
+const iso = (value: Date) => new Date(value.getTime() + 19_800_000).toISOString().slice(0, 10);
+const normalizedTitle = (value: string) => value.toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]/g, '');
+function enumValue<T extends string>(values: Record<string, T>, value: string): T {
+	const result = values[value.replaceAll('-', '_').toUpperCase()];
+	if (!result) throw new Error(`Invalid imported enum: ${value}`);
+	return result;
 }
 
-function toIsoDate(value: string | null | undefined): string | null {
-	if (!value) return null;
-	const trimmed = value.trim();
-	const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
-	if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-	const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-	if (slashMatch) {
-		const [, day, month, year] = slashMatch;
-		return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+export async function syncLiveBills(dryRun = false) {
+	await mkdir(artifactDir, { recursive: true });
+	const snapshot = await loadRecentSansadBills(async (url) => {
+		const payload = await fetchJson<SansadBillsPayload>(url, { headers: { accept: 'application/json', referer: 'https://sansad.in/ls/legislation/bills', 'user-agent': 'BharatZero data refresh' } });
+		console.log(`Read official page ${payload._metadata?.currentPageNumber ?? '?'}: ${payload.records?.length ?? 0} rows`);
+		return payload;
+	}, since);
+	if (!snapshot.records.length) throw new Error('No current-term records returned; refusing an empty refresh.');
+	const checkedAt = new Date().toISOString();
+	await writeFile(`${artifactDir}/sansad-snapshot.json`, JSON.stringify({ checkedAt, ...snapshot }, null, 2));
+
+	const unique = new Map<string, SansadBillRecord>();
+	for (const record of snapshot.records) {
+		const bill = normalizeBill(record);
+		const key = `${bill.id}:${record.billNumber}:${bill.origin_house}`;
+		const previous = unique.get(key);
+		const completeness = (row: SansadBillRecord) => Object.values(row).filter(Boolean).length;
+		const priorDate = previous ? normalizeBill(previous).latest_action_date : '';
+		if (!previous || bill.latest_action_date > priorDate || (bill.latest_action_date === priorDate && completeness(record) > completeness(previous))) unique.set(key, record);
 	}
-	return null;
-}
-
-function toHouse(value: string | null | undefined): House {
-	return value?.toLowerCase().includes('rajya') ? 'rajya-sabha' : 'lok-sabha';
-}
-
-function toBillType(category: string | null | undefined): BillType {
-	const normalized = category?.toLowerCase() ?? '';
-	if (normalized.includes('money')) return 'money';
-	if (normalized.includes('financial')) return 'financial';
-	if (normalized.includes('constitutional')) return 'constitutional-amendment';
-	return 'ordinary';
-}
-
-function toStage(record: SansadBillRecord): BillStage {
-	const status = record.status?.toLowerCase() ?? '';
-	if (status.includes('lapsed')) return 'lapsed';
-	if (status.includes('withdrawn') || status.includes('removed') || status.includes('negatived')) return 'withdrawn';
-	if (record.actNo || record.actYear || record.billGazettedFile) return 'act_published';
-	if (record.billAssentedDate || status.includes('assented')) return 'assented';
-	if (record.billPassedInLSDate && record.billPassedInRSDate) return 'passed_second_house';
-	if (record.billPassedInLSDate || record.billPassedInRSDate || status.includes('passed')) return 'passed_origin_house';
-	if (record.reportPresentedDate) return 'committee_reported';
-	if (record.referredToCommitteeDate) return 'referred_committee';
-	if (status.includes('part-discussed')) return 'taken_up';
-	return 'introduced';
-}
-
-function actionTypeFor(stageName: string): TimelineEventType {
-	const n = stageName.toLowerCase();
-	if (n.includes('assented')) return 'bill_assented';
-	if (n.includes('rajya sabha')) return 'bill_passed_second_house';
-	if (n.includes('lok sabha')) return 'bill_passed_origin_house';
-	if (n.includes('committee')) return 'bill_referred_committee';
-	if (n.includes('introduced')) return 'bill_introduced';
-	if (n.includes('lapsed')) return 'bill_lapsed';
-	if (n.includes('withdrawn')) return 'bill_withdrawn';
-	return 'bill_taken_up';
-}
-
-function eventTitleFor(stageName: string, billName: string): string {
-	const shortName = billName.replace(/^the\s+/i, '').replace(/\s+/g, ' ').trim();
-	const n = stageName.toLowerCase();
-	if (n.includes('assented')) return `${shortName} received President's assent`;
-	if (n.includes('rajya sabha')) return `${shortName} passed by Rajya Sabha`;
-	if (n.includes('lok sabha')) return `${shortName} passed by Lok Sabha`;
-	if (n.includes('introduced')) return `${shortName} introduced`;
-	return `${shortName}: ${stageName}`;
-}
-
-function sourceUrlFor(record: SansadBillRecord): string {
-	return (
-		record.billPassedInBothHousesFile ??
-		record.billGazettedFile ??
-		record.billIntroducedFile ??
-		record.billPassedInLSFile ??
-		record.billPassedInRSFile ??
-		record.reportFile ??
-		'https://sansad.in/ls/legislation/bills'
-	);
-}
-
-function latestDateFor(record: SansadBillRecord): string {
-	const stageDates = (record.stages ?? []).map((s) => toIsoDate(s[1])).filter((d): d is string => Boolean(d));
-	const candidates = [
-		toIsoDate(record.billAssentedDate),
-		toIsoDate(record.reportPresentedDate),
-		toIsoDate(record.billPassedInRSDate),
-		toIsoDate(record.billPassedInLSDate),
-		toIsoDate(record.billIntroducedDate),
-		...stageDates
-	].filter((d): d is string => Boolean(d));
-	return candidates.sort().at(-1) ?? `${record.billYear ?? new Date().getFullYear()}-01-01`;
-}
-
-function billYearFor(record: SansadBillRecord): number {
-	return (record.billYear ?? Number(toIsoDate(record.billIntroducedDate)?.slice(0, 4))) || new Date().getFullYear();
-}
-
-function billIdFor(record: SansadBillRecord): string {
-	return `${slugify(record.billName.replace(/\s+/g, ' ').trim())}-${billYearFor(record)}`;
-}
-
-function normalizeBill(record: SansadBillRecord): Bill {
-	const year = billYearFor(record);
-	const title = record.billName.replace(/\s+/g, ' ').trim();
-	const billNumber =
-		record.actNo && record.actYear
-			? `Act No. ${record.actNo} of ${record.actYear}`
-			: record.billNumber
-				? `Bill No. ${record.billNumber} of ${year}`
-				: `Bill of ${year}`;
-	return {
-		id: billIdFor(record),
-		title_en: title,
-		title_hi: title,
-		bill_number: billNumber,
-		bill_year: year,
-		bill_type: toBillType(record.billCategory),
-		origin_house: toHouse(record.billIntroducedInHouse),
-		current_stage: toStage(record),
-		ministry: record.ministryName ?? 'Unspecified ministry',
-		introduced_on: toIsoDate(record.billIntroducedDate) ?? latestDateFor(record),
-		latest_action_date: latestDateFor(record),
-		source_url: sourceUrlFor(record),
-		summary: `${title} is a ${record.billType ?? 'Parliament'} ${record.billCategory ?? 'Bill'} from ${record.ministryName ?? 'the recorded ministry'} with status ${record.status ?? 'recorded'} in the Sansad legislation dataset.`,
-		isDemoSeed: false
-	};
-}
-
-function normalizeActions(record: SansadBillRecord, bill: Bill): BillAction[] {
-	const stageRows = record.stages?.length
-		? record.stages
-		: ([['Introduced', record.billIntroducedDate, record.billIntroducedInHouse]] as Array<[string, string | null, string | null]>);
-	return stageRows.flatMap((stage, index) => {
-		const date = toIsoDate(stage[1]);
-		if (!date) return [];
-		return [
-			{
-				id: `${bill.id}-action-${index + 1}-${slugify(stage[0])}`,
-				bill_id: bill.id,
-				date,
-				house: stage[2] ? toHouse(stage[2]) : bill.origin_house,
-				action_type: actionTypeFor(stage[0]),
-				description: `${stage[0]} for ${bill.title_en}.`,
-				source_url: sourceUrlFor(record),
-				isDemoSeed: false
-			}
-		];
-	});
-}
-
-function normalizeTimelineEvents(bill: Bill, actions: BillAction[]): TimelineEvent[] {
-	return actions.map((action) => ({
-		id: `${bill.id}-event-${action.id.replace(`${bill.id}-action-`, '')}`,
-		date: action.date,
-		house: action.house,
-		type: action.action_type as TimelineEventType,
-		title: eventTitleFor(action.description.replace(` for ${bill.title_en}.`, ''), bill.title_en),
-		description: action.description,
-		related_bill_id: bill.id,
-		source_url: action.source_url,
-		isDemoSeed: false
-	}));
-}
-
-async function fetchJson(url: string): Promise<SansadPayload> {
-	const response = await fetch(url, {
-		headers: {
-			accept: 'application/json, text/plain, */*',
-			referer: 'https://sansad.in/ls/legislation/bills',
-			'user-agent': 'BharatZero live bill sync'
-		}
-	});
-	if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-	return response.json() as Promise<SansadPayload>;
-}
-
-async function fetchSansadPaginated(): Promise<SansadBillRecord[]> {
-	const aggregated: SansadBillRecord[] = [];
-	for (let pageNo = 0; pageNo < SANSAD_MAX_PAGES; pageNo += 1) {
-		const url = `${SANSAD_BILLS_API_BASE}?pageNo=${pageNo}&pageSize=10&locale=en&sortOn=billIntroducedDate&sortBy=desc`;
-		const payload = await fetchJson(url);
-		const pageRecords = payload.records ?? payload.bills ?? [];
-		if (!pageRecords.length) break;
-		aggregated.push(...pageRecords);
-		const oldestOnPage = pageRecords
-			.map((r) => toIsoDate(r.billIntroducedDate))
-			.filter((d): d is string => Boolean(d))
-			.sort()[0];
-		if (oldestOnPage && oldestOnPage < CUTOFF_DATE) break;
-	}
-	return aggregated;
-}
-
-async function loadPayload(): Promise<{ records: SansadBillRecord[]; sourceUrl: string }> {
-	if (flags['force-mirror']) {
-		const payload = await fetchJson(FALLBACK_BILLS_DATASET);
-		return { records: payload.records ?? payload.bills ?? [], sourceUrl: FALLBACK_BILLS_DATASET };
-	}
+	const db = createPrismaClient();
 	try {
-		const records = await fetchSansadPaginated();
-		if (records.length) return { records, sourceUrl: `${SANSAD_BILLS_API_BASE} (paginated)` };
-		throw new Error('Sansad API returned no records');
-	} catch (error) {
-		log.warn(`Sansad API unavailable (${String(error)}); falling back to mirror.`);
-		const payload = await fetchJson(FALLBACK_BILLS_DATASET);
-		return { records: payload.records ?? payload.bills ?? [], sourceUrl: FALLBACK_BILLS_DATASET };
-	}
-}
-
-const toPrismaEnum = (value: string) => value.replaceAll('-', '_').toUpperCase();
-const toDate = (value: string) => new Date(`${value}T00:00:00+05:30`);
-
-async function main() {
-	const { records: allRecords, sourceUrl } = await loadPayload();
-	const filtered = allRecords.filter((r) => {
-		const introduced = toIsoDate(r.billIntroducedDate);
-		return introduced !== null && introduced >= CUTOFF_DATE;
-	});
-
-	log.info(`source:           ${sourceUrl}`);
-	log.info(`fetched records:  ${allRecords.length}`);
-	log.info(`post-${CUTOFF_DATE}:    ${filtered.length}`);
-
-	if (filtered.length === 0) {
-		log.info('No bills to process. Exiting cleanly.');
-		return;
-	}
-
-	const prisma = createPrismaClient();
-	try {
-		const candidateBills = filtered.map(normalizeBill);
-		const candidateIds = candidateBills.map((b) => b.id);
-		const existing = await prisma.bill.findMany({
-			where: { id: { in: candidateIds } },
-			select: { id: true }
+		const existing = await db.bill.findMany();
+		const reserved = new Set<string>();
+		const plans = [...unique.values()].map((record) => {
+			const bill = normalizeBill(record);
+			const matches = existing.filter((row) => row.origin_house === enumValue(House, bill.origin_house) && iso(row.introduced_on) === bill.introduced_on && normalizedTitle(row.title_en) === normalizedTitle(bill.title_en));
+			const match = matchBillNumber(matches, bill.bill_number, bill.id);
+			if (match) bill.id = match.id;
+			else if (existing.some((row) => row.id === bill.id) || reserved.has(bill.id)) bill.id += `-${record.billNumber?.trim() ?? bill.origin_house}`;
+			if (reserved.has(bill.id)) throw new Error(`Ambiguous source identity: ${bill.id}`);
+			reserved.add(bill.id);
+			if (match && match.title_hi !== match.title_en) bill.title_hi = match.title_hi;
+			const fields = {
+				title_en: bill.title_en, title_hi: bill.title_hi, bill_number: bill.bill_number, bill_year: bill.bill_year,
+				bill_type: enumValue(BillType, bill.bill_type), origin_house: enumValue(House, bill.origin_house),
+				current_stage: enumValue(BillStage, bill.current_stage), ministry: bill.ministry,
+				introduced_on: date(bill.introduced_on), latest_action_date: date(bill.latest_action_date),
+				source_url: bill.source_url, summary: bill.summary, is_demo_seed: false
+			};
+			const older = match && iso(match.latest_action_date) > bill.latest_action_date;
+			if (older) for (const key of Object.keys(fields) as Array<keyof typeof fields>) if (key !== 'bill_number') Object.assign(fields, { [key]: match[key] });
+			const changed = !match || Object.entries(fields).some(([key, value]) => {
+				const old = match[key as keyof typeof match];
+				return value instanceof Date ? !(old instanceof Date) || value.getTime() !== old.getTime() : old !== value;
+			});
+			return { record, bill, fields, match, changed, older };
 		});
-		const existingIdSet = new Set(existing.map((row) => row.id));
-		const newRecords = filtered.filter((r) => !existingIdSet.has(billIdFor(r)));
-
-		log.info(`already in DB:    ${existingIdSet.size}`);
-		log.info(`new to insert:    ${newRecords.length}`);
-
-		if (newRecords.length === 0) {
-			log.info('Nothing new — DB already current.');
-			return;
-		}
-
-		const newBills = newRecords.map(normalizeBill);
-		const newActions = newRecords.flatMap((r) => normalizeActions(r, normalizeBill(r)));
-		const newEvents = newBills.flatMap((bill) => {
-			const record = newRecords.find((r) => billIdFor(r) === bill.id);
-			if (!record) return [];
-			return normalizeTimelineEvents(bill, normalizeActions(record, bill));
+		const ids = plans.map(({ bill }) => bill.id);
+		const [actions, events, acts] = await Promise.all([
+			db.billAction.findMany({ where: { bill_id: { in: ids } } }),
+			db.timelineEvent.findMany({ where: { related_bill_id: { in: ids } } }),
+			db.act.findMany({ where: { linked_bill_id: { in: ids } } })
+		]);
+		const summary = { checkedAt, sourceUrl: snapshot.sourceUrl, coverage: `Bills introduced since ${since}; actions and linked Acts`, since, pages: snapshot.pages, sourceRows: snapshot.records.length, uniqueBills: plans.length, inserted: plans.filter((p) => !p.match).length, updated: plans.filter((p) => p.match && p.changed).length, retainedNewer: plans.filter((p) => p.older).length, latestActivityDate: plans.map(({ bill }) => bill.latest_action_date).sort().at(-1) ?? null };
+		console.log(JSON.stringify({ dryRun, ...summary }, null, 2));
+		if (dryRun) return summary;
+		await writeFile(`${artifactDir}/backup-${checkedAt.replaceAll(':', '-')}.json`, JSON.stringify({ bills: existing.filter((row) => ids.includes(row.id)), actions, events, acts }, null, 2));
+		const actionRows = plans.flatMap(({ bill, record }) => normalizeActions(record, bill).map((action) => {
+			const prior = actions.find((row) => row.bill_id === bill.id && iso(row.date) === action.date && row.house === enumValue(House, action.house) && row.action_type === action.action_type);
+			return { prior, fields: { id: prior?.id ?? action.id, bill_id: bill.id, date: date(action.date), house: enumValue(House, action.house), action_type: action.action_type, description: action.description, source_url: action.source_url, is_demo_seed: false } };
+		}));
+		const eventRows = plans.flatMap(({ bill, record }) => normalizeTimelineEvents(record, bill, normalizeActions(record, bill)).map((event) => {
+			const prior = events.find((row) => row.related_bill_id === bill.id && iso(row.date) === event.date && row.house === enumValue(House, event.house) && row.type === enumValue(TimelineEventType, event.type));
+			return { prior, fields: { id: prior?.id ?? event.id, related_bill_id: bill.id, date: date(event.date), house: enumValue(House, event.house), type: enumValue(TimelineEventType, event.type), title: event.title, description: event.description, source_url: event.source_url, is_demo_seed: false } };
+		}));
+		const actRows = plans.flatMap(({ bill, record }) => {
+			const act = normalizeAct(record, bill);
+			if (!act) return [];
+			const prior = acts.find((row) => row.linked_bill_id === bill.id && row.year === act.year);
+			return [{ prior, fields: { id: prior?.id ?? act.id, title: act.title, act_number: act.act_number, year: act.year, linked_bill_id: bill.id, india_code_url: act.india_code_url, is_demo_seed: false } }];
 		});
-
-		log.info(`prepared:         ${newBills.length} bills, ${newActions.length} actions, ${newEvents.length} events`);
-
-		if (flags['dry-run']) {
-			log.info(`target:           ${safeDbUrl(process.env.DATABASE_URL ?? '')}`);
-			log.info('dry-run; no changes made.');
-			for (const bill of newBills) {
-				log.info(`  would insert: ${bill.id} | ${bill.introduced_on} | ${bill.title_en.slice(0, 70)}`);
-			}
-			return;
-		}
-
-		const billRows = newBills.map((bill) => ({
-			id: bill.id,
-			title_en: bill.title_en,
-			title_hi: bill.title_hi,
-			bill_number: bill.bill_number,
-			bill_year: bill.bill_year,
-			bill_type: toPrismaEnum(bill.bill_type),
-			origin_house: toPrismaEnum(bill.origin_house),
-			current_stage: toPrismaEnum(bill.current_stage),
-			ministry: bill.ministry,
-			introduced_on: toDate(bill.introduced_on),
-			latest_action_date: toDate(bill.latest_action_date),
-			source_url: bill.source_url,
-			summary: bill.summary,
-			is_demo_seed: bill.isDemoSeed
-		}));
-
-		const actionRows = newActions.map((a) => ({
-			id: a.id,
-			bill_id: a.bill_id,
-			date: toDate(a.date),
-			house: toPrismaEnum(a.house),
-			action_type: a.action_type,
-			description: a.description,
-			source_url: a.source_url,
-			is_demo_seed: a.isDemoSeed
-		}));
-
-		const eventRows = newEvents.map((e) => ({
-			id: e.id,
-			date: toDate(e.date),
-			house: toPrismaEnum(e.house),
-			type: toPrismaEnum(e.type),
-			title: e.title,
-			description: e.description,
-			related_bill_id: e.related_bill_id,
-			source_url: e.source_url,
-			is_demo_seed: e.isDemoSeed
-		}));
-
-		const inserted = await prisma.$transaction(
-			async (tx) => ({
-				bills: (await tx.bill.createMany({ data: billRows, skipDuplicates: true })).count,
-				actions: (await tx.billAction.createMany({ data: actionRows, skipDuplicates: true })).count,
-				events: (await tx.timelineEvent.createMany({ data: eventRows, skipDuplicates: true })).count
-			}),
-			{ timeout: 30_000 }
-		);
-
-		log.info(`inserted:         ${inserted.bills} bills, ${inserted.actions} actions, ${inserted.events} events`);
-		log.info(`target:           ${safeDbUrl(process.env.DATABASE_URL ?? '')}`);
-		log.info('Live bill sync complete.');
-	} finally {
-		await prisma.$disconnect();
-	}
+		await db.$transaction(async (tx) => {
+			await tx.bill.createMany({ data: plans.filter((plan) => !plan.match).map(({ bill, fields }) => ({ id: bill.id, ...fields })), skipDuplicates: true });
+			for (const plan of plans.filter((plan) => plan.match && plan.changed)) await tx.bill.update({ where: { id: plan.bill.id }, data: plan.fields });
+			await tx.billAction.createMany({ data: actionRows.map(({ fields }) => fields), skipDuplicates: true });
+			await tx.timelineEvent.createMany({ data: eventRows.map(({ fields }) => fields), skipDuplicates: true });
+			await tx.act.createMany({ data: actRows.map(({ fields }) => fields), skipDuplicates: true });
+			for (const { prior, fields } of actionRows) if (prior && prior.source_url !== fields.source_url) await tx.billAction.update({ where: { id: prior.id }, data: { source_url: fields.source_url } });
+			for (const { prior, fields } of eventRows) if (prior && prior.source_url !== fields.source_url) await tx.timelineEvent.update({ where: { id: prior.id }, data: { source_url: fields.source_url } });
+			for (const { prior, fields } of actRows) if (prior && (prior.act_number !== fields.act_number || prior.india_code_url !== fields.india_code_url)) await tx.act.update({ where: { id: prior.id }, data: fields });
+		}, { timeout: 180_000 });
+		await writeFile('src/lib/data/generated/data-refresh.json', JSON.stringify(summary, null, 2) + '\n');
+		console.log('Official current-term refresh completed. Existing records and newer curated outcomes were retained.');
+		return summary;
+	} finally { await db.$disconnect(); }
 }
-
-main().catch((error) => {
-	log.error(error instanceof Error ? error.message : String(error));
-	process.exit(1);
-});
+runCli(import.meta.url, () => syncLiveBills(process.argv.includes('--dry-run')));

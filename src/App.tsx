@@ -1,5 +1,7 @@
+import { DataRefreshStatus } from '$lib/components/DataRefreshStatus';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getBillDetail, getDashboardData, type BillDetailData, type DashboardData } from '$lib/data/view-model';
+import type { BillDetailData, DashboardData } from '$lib/data/view-model';
+import { dashboardApiUrl, emptyDashboard, useApi } from '$lib/client/api';
 import {
 	formatDate,
 	getStageTone,
@@ -46,11 +48,7 @@ import { getPrimeMinisterTerm, getPrimeMinisterTermLabel, PRIME_MINISTER_TERMS }
 import { hrefForSection } from '$lib/domain/navigation-links';
 import type { TimelineDateGroup, TimelineDateRailItem } from '$lib/domain/timeline-view';
 
-type DataSourceMeta = {
-	mode: 'seed' | 'prisma';
-	label: string;
-	isLiveOfficialData: boolean;
-};
+import type { DataSourceMeta } from '$lib/server/repositories/legislative';
 
 type AppDashboardData = DashboardData & {
 	dataSource?: DataSourceMeta;
@@ -182,7 +180,7 @@ function hrefForDebate(filters: DashboardFilters, debateId: string) {
 }
 
 function hrefForSourceRecords(sourceId: string, language: Language) {
-	const section = sourceId === 'source-india-code' ? 'acts' : sourceId === 'source-data-gov' ? 'questions' : 'bills';
+	const section = sourceId === 'source-india-code' ? 'acts' : ['source-data-gov', 'source-rajya-sabha'].includes(sourceId) ? 'questions' : 'bills';
 	const search = new URLSearchParams({
 		section,
 		lang: language,
@@ -262,14 +260,17 @@ function App() {
 	const [locationSearch, setLocationSearch] = useState(() => window.location.search);
 	const [locationPath, setLocationPath] = useState(() => window.location.pathname);
 	const filters = useMemo(() => normalizeFiltersForSection(parseDashboardFilters(new URLSearchParams(locationSearch))), [locationSearch]);
-	const dashboard = useMemo<AppDashboardData>(() => getDashboardData(filters), [filters]);
 	const locationParams = new URLSearchParams(locationSearch);
 	const showingMethodology = locationPath === '/methodology';
+	const staticPage = filters.section === 'states' || showingMethodology;
+	const dashboardRequest = useApi<AppDashboardData>(staticPage ? null : dashboardApiUrl(filters));
+	const dashboard = useMemo<AppDashboardData>(() => dashboardRequest.data ?? emptyDashboard(filters), [dashboardRequest.data, filters]);
 	const shellSection = showingMethodology ? 'states' : dashboard.filters.section;
 	const selectedBillId = dashboard.filters.section === 'bills' ? (locationParams.get('bill') ?? dashboard.bills[0]?.id ?? null) : locationParams.get('bill');
 	const selectedActId = dashboard.filters.section === 'acts' ? (locationParams.get('act') ?? dashboard.acts[0]?.id ?? null) : null;
 	const selectedDebateId = dashboard.filters.section === 'debates' ? (locationParams.get('debate') ?? dashboard.debates[0]?.id ?? null) : null;
-	const selectedBillForRender = useMemo<AppBillDetailData | null>(() => (selectedBillId ? getBillDetail(selectedBillId) : null), [selectedBillId]);
+	const billRequest = useApi<AppBillDetailData>(selectedBillId ? `/api/bills/${encodeURIComponent(selectedBillId)}` : null);
+	const selectedBillForRender = billRequest.data ?? null;
 	const actBillsById = useMemo(() => new Map((dashboard.actBills ?? dashboard.allBills ?? []).map((bill) => [bill.id, bill])), [dashboard.actBills, dashboard.allBills]);
 	const selectedAct = selectedActId ? dashboard.acts.find((act) => act.id === selectedActId) ?? null : null;
 	const selectedActLinkedBill = selectedAct ? actBillsById.get(selectedAct.linked_bill_id) ?? null : null;
@@ -288,9 +289,9 @@ function App() {
 	const hasAiAnalysis = selectedAnalysisKey ? Boolean(aiAnalysisByKey[selectedAnalysisKey]) : false;
 	const hasAiAnalysisFailed = selectedAnalysisKey ? Boolean(aiAnalysisFailedKeys[selectedAnalysisKey]) : false;
 	const selectedBillAnalysis = selectedAnalysisKey ? (aiAnalysisByKey[selectedAnalysisKey] ?? localSelectedAnalysis) : null;
-	const selectedAnalysisStatus: AnalysisStatus = selectedAnalysisKey && aiAnalysisByKey[selectedAnalysisKey]?.source !== 'local'
+	const selectedAnalysisStatus: AnalysisStatus = selectedAnalysisKey && aiAnalysisByKey[selectedAnalysisKey]?.source === 'gemma'
 		? 'ai'
-		: aiAnalysisLoadingKey === selectedAnalysisKey
+		: selectedAnalysisKey && aiAnalysisLoadingKey === selectedAnalysisKey
 			? 'loading'
 			: 'local';
 
@@ -401,11 +402,12 @@ function App() {
 			query={dashboard.filters.query}
 			language={dashboard.filters.language}
 			dashboard={dashboard}
+			detailKey={locationParams.get('bill') ?? locationParams.get('act') ?? locationParams.get('debate')}
 			aside={
 				dashboard.filters.section === 'acts' ? (
 					<ActDetailPanel act={selectedAct} linkedBill={selectedActLinkedBill} filters={dashboard.filters} onNavigate={navigateInApp} />
 				) : dashboard.filters.section === 'bills' ? (
-					<BillDetailPanel bill={selectedBillForRender?.bill ?? null} actions={selectedBillForRender?.actions ?? []} filters={dashboard.filters} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
+					billRequest.loading ? <p role="status" className="p-4">Loading bill details…</p> : billRequest.error ? <ApiError message={billRequest.error} retry={billRequest.retry} /> : <BillDetailPanel bill={selectedBillForRender?.bill ?? null} actions={selectedBillForRender?.actions ?? []} filters={dashboard.filters} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
 				) : dashboard.filters.section === 'debates' ? (
 					<DebateDetailPanel debate={selectedDebate} filters={dashboard.filters} onNavigate={navigateInApp} aiSummary={debateAiSummaryPayload} aiSummaryStatus={debateAiSummaryStatus} />
 				) : null
@@ -413,11 +415,19 @@ function App() {
 		>
 			{showingMethodology ? (
 				<StateGovernanceMethodology language={dashboard.filters.language} onNavigate={navigateInApp} />
+			) : dashboardRequest.loading ? (
+				<p role="status" className="bz-panel rounded-lg p-5">Loading Parliament records…</p>
+			) : dashboardRequest.error ? (
+				<ApiError message={dashboardRequest.error} retry={dashboardRequest.retry} />
 			) : (
-				<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedActId={selectedActId} selectedDebateId={selectedDebateId} selectedBill={selectedBillForRender} selectedBillAnalysis={selectedBillAnalysis} selectedAnalysisStatus={selectedAnalysisStatus} onNavigate={navigateInApp} />
+				<MainContent dashboard={dashboard} selectedBillId={selectedBillId} selectedActId={selectedActId} selectedDebateId={selectedDebateId} onNavigate={navigateInApp} />
 			)}
 		</AppShell>
 	);
+}
+
+function ApiError({ message, retry }: { message: string; retry: () => void }) {
+	return <div role="alert" className="bz-panel rounded-lg p-4"><p>{message}</p><button type="button" onClick={retry} className="mt-3 rounded border px-3 py-2 bz-focus">Try again</button></div>;
 }
 
 function MainContent({
@@ -425,18 +435,12 @@ function MainContent({
 	selectedBillId,
 	selectedActId,
 	selectedDebateId,
-	selectedBill,
-	selectedBillAnalysis,
-	selectedAnalysisStatus,
 	onNavigate
 }: {
 	dashboard: AppDashboardData;
 	selectedBillId: string | null;
 	selectedActId: string | null;
 	selectedDebateId: string | null;
-	selectedBill: AppBillDetailData | null;
-	selectedBillAnalysis: BillAnalysis | null;
-	selectedAnalysisStatus: AnalysisStatus;
 	onNavigate: NavigateHandler;
 }) {
 	const { filters } = dashboard;
@@ -463,9 +467,14 @@ function MainContent({
 
 	return (
 		<>
-			{filters.section !== 'states' && <FilterBar filters={filters} sessionName={sessionName} stageCounts={dashboard.stageCounts ?? []} areaCounts={dashboard.areaCounts ?? []} />}
-			{filters.section === 'bills' && <ParliamentSessionBanner latestActivityDate={latestActivityDate} />}
-			{filters.section !== 'states' && <LoadTimeNotice />}
+			{!['states', 'houses'].includes(filters.section) && <FilterBar filters={filters} sessionName={sessionName} stageCounts={dashboard.stageCounts ?? []} areaCounts={dashboard.areaCounts ?? []} />}
+			{['overview', 'bills', 'timeline', 'acts'].includes(filters.section) && <RecordCoverageNotice latestActivityDate={latestActivityDate} updatedAt={dashboard.dataSource?.updatedAt} sourceCheck={dashboard.dataSource?.officialBillCheck} />}
+			{filters.section === 'questions' && <div className="text-xs leading-5 text-[var(--bz-text-2)]">
+				{dashboard.dataSource?.officialQuestionCheck && <p>Official questions checked {formatDate(dashboard.dataSource.officialQuestionCheck.checkedAt.slice(0, 10))}. Coverage: {dashboard.dataSource.officialQuestionCheck.coverage}. Answer PDFs are linked from each record.</p>}
+				{dashboard.dataSource?.catalogCheckedAt && <p>Supplemental OGD catalogs checked {formatDate(dashboard.dataSource.catalogCheckedAt)}. Their update dates describe catalog metadata.</p>}
+			</div>}
+			{filters.section === 'debates' && dashboard.dataSource?.officialDebateCheck && <p className="text-xs leading-5 text-[var(--bz-text-2)]">Parliament debate index checked {formatDate(dashboard.dataSource.officialDebateCheck.checkedAt.slice(0, 10))}. Coverage: {dashboard.dataSource.officialDebateCheck.coverage}. Transcript availability is shown for each record.</p>}
+			{filters.section === 'committees' && <p className="text-xs leading-5 text-[var(--bz-text-2)]">Selected committee references linked to captured bills. This is a partial archive, rather than a current committee membership directory.</p>}
 
 			{filters.section === 'overview' && (
 				<>
@@ -488,27 +497,29 @@ function MainContent({
 				</>
 			)}
 
-			{filters.section === 'timeline' && <TimelineRail events={dashboard.timelineEvents} dateRail={dashboard.timelineDateRail} groups={dashboard.timelineGroups} />}
+			{filters.section === 'timeline' && <>
+				<BillPagination filters={filters} pagination={dashboard.pagination} recordLabel="event" recordLabelPlural="events" hrefForPage={(filters, page) => hrefForPagedSection(filters, 'timeline', page)} ariaLabel="Timeline pages" />
+				<TimelineRail events={dashboard.timelineEvents} dateRail={dashboard.timelineDateRail} groups={dashboard.timelineGroups} />
+				<BillPagination filters={filters} pagination={dashboard.pagination} recordLabel="event" recordLabelPlural="events" hrefForPage={(filters, page) => hrefForPagedSection(filters, 'timeline', page)} ariaLabel="Timeline pages" />
+			</>}
 
 			{filters.section === 'houses' && <HousesSection filters={filters} />}
 
 			{filters.section === 'states' && <StatesSection language={filters.language} onNavigate={onNavigate} />}
 
 			{filters.section === 'bills' && (
-				<div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] 2xl:grid-cols-1">
+				<div>
 					<div className="space-y-3">
 						<BillPagination filters={filters} pagination={dashboard.pagination} />
 						<BillList bills={dashboard.bills} selectedBillId={selectedBillId ?? undefined} filters={filters} onNavigate={onNavigate} />
 						<BillPagination filters={filters} pagination={dashboard.pagination} />
-					</div>
-					<div className="2xl:hidden">
-						<BillAnalysisPanel bill={selectedBill?.bill ?? null} actions={selectedBill?.actions ?? []} language={filters.language} analysis={selectedBillAnalysis} analysisStatus={selectedAnalysisStatus} />
 					</div>
 				</div>
 			)}
 
 			{filters.section === 'committees' && (
 				<section className="grid gap-3 md:grid-cols-2">
+					{dashboard.committees.length === 0 && <EmptyState title="No committees match these filters" message="Change the search, House, or source to broaden the captured committee references." />}
 					{dashboard.committees.map((committee) => (
 						<article className="bz-panel rounded-lg p-4" key={committee.id}>
 							<p className="bz-eyebrow">{committee.type}</p>
@@ -524,6 +535,8 @@ function MainContent({
 
 			{filters.section === 'questions' && (
 				<section className="space-y-3">
+					<BillPagination filters={filters} pagination={dashboard.pagination} recordLabel="question or catalog" recordLabelPlural="questions and catalogs" hrefForPage={(filters, page) => hrefForPagedSection(filters, 'questions', page)} ariaLabel="Question pages" />
+					{dashboard.questions.length === 0 && <EmptyState title="No questions match these filters" message="Change the Prime Minister term, search, House, policy area, or source filter to broaden the question records." />}
 					{dashboard.questions.map((question) => {
 						const isDataGovCatalog = isDataGovQuestionCatalog(question);
 						const catalogNote = questionCatalogNote(question);
@@ -539,7 +552,7 @@ function MainContent({
 								<div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium text-[var(--bz-text-2)]">
 									<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">{houseLabelsLocalized[filters.language][question.house]}</span>
 									<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">{question.number}</span>
-									<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">Updated {formatDate(question.date)}</span>
+									<span className="rounded border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1">{isDataGovCatalog ? 'Catalog updated' : 'Answer date'} {formatDate(question.date)}</span>
 								</div>
 								{catalogNote && <p className="mt-3 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs leading-5 text-[var(--bz-text-2)]">{catalogNote}</p>}
 								{!isDataGovCatalog && <p className="mt-2 text-sm text-[var(--bz-text-2)]">{question.ministry}</p>}
@@ -549,12 +562,14 @@ function MainContent({
 							</article>
 						);
 					})}
+					<BillPagination filters={filters} pagination={dashboard.pagination} recordLabel="question or catalog" recordLabelPlural="questions and catalogs" hrefForPage={(filters, page) => hrefForPagedSection(filters, 'questions', page)} ariaLabel="Question pages" />
 				</section>
 			)}
 
 			{filters.section === 'debates' && (
 				dashboard.debates.length ? (
 					<section className="space-y-3">
+						<BillPagination filters={filters} pagination={dashboard.pagination} recordLabel="debate" recordLabelPlural="debates" hrefForPage={(filters, page) => hrefForPagedSection(filters, 'debates', page)} ariaLabel="Debate pages" />
 						{dashboard.debates.map((debate) => (
 							<article className={cx('bz-panel rounded-lg p-4 transition', debate.id === selectedDebateId ? 'border-[var(--bz-accent)] bg-[var(--bz-accent-3)]' : 'hover:border-[var(--bz-accent)]')} key={debate.id}>
 								<a
@@ -581,9 +596,10 @@ function MainContent({
 								</div>
 							</article>
 						))}
+						<BillPagination filters={filters} pagination={dashboard.pagination} recordLabel="debate" recordLabelPlural="debates" hrefForPage={(filters, page) => hrefForPagedSection(filters, 'debates', page)} ariaLabel="Debate pages" />
 					</section>
 				) : (
-					<EmptyState title="No debates match these filters" message="Change the search, House, or source filter to broaden the debate proceedings." />
+					<EmptyState title="No debates match these filters" message="Change the Prime Minister term, search, House, or source filter to broaden the debate proceedings." />
 				)
 			)}
 
@@ -597,6 +613,7 @@ function MainContent({
 
 			{filters.section === 'sources' && (
 				<div className="space-y-3">
+					<DataRefreshStatus refreshes={dashboard.dataSource?.refreshes} />
 					<section className="bz-panel rounded-lg p-5">
 						<p className="bz-eyebrow text-[var(--bz-accent)]">Official sources</p>
 						<h2 className="mt-2 text-xl font-semibold text-[var(--bz-text-1)]">Where BharatZero will link each record</h2>
@@ -624,6 +641,7 @@ function MainContent({
 						</div>
 					</section>
 					<section className="grid gap-3 md:grid-cols-2">
+						{dashboard.sources.length === 0 && <EmptyState title="No source families match this search" message="Change the search or clear the source filter." />}
 						{dashboard.sources.map((source) => (
 							<article className="bz-panel rounded-lg p-4" key={source.id}>
 								<div className="flex flex-wrap items-center justify-between gap-3">
@@ -978,7 +996,8 @@ function AppShell({
 	language,
 	dashboard,
 	children,
-	aside
+	aside,
+	detailKey
 }: {
 	section: SectionId;
 	query: string;
@@ -986,25 +1005,24 @@ function AppShell({
 	dashboard: AppDashboardData;
 	children: React.ReactNode;
 	aside?: React.ReactNode;
+	detailKey?: string | null;
 }) {
 	const [darkMode, setDarkMode] = useState(false);
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 	const [signedInDemo, setSignedInDemo] = useState(false);
 	const [cabinetOpen, setCabinetOpen] = useState(false);
 	const hasAside = Boolean(aside);
-	const showLeftSidebar = section !== 'states' && !sidebarCollapsed;
-	const showSearch = section !== 'states';
-	const now = new Date();
-	const updatedDate = new Intl.DateTimeFormat('en-IN', {
-		weekday: 'short',
-		day: 'numeric',
-		month: 'short'
-	}).format(now);
-	const updatedTime = new Intl.DateTimeFormat('en-IN', {
-		hour: '2-digit',
-		minute: '2-digit',
-		hour12: true
-	}).format(now);
+	const mobileDetailRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (!detailKey || !window.matchMedia('(max-width: 1023px)').matches) return;
+		mobileDetailRef.current?.scrollIntoView({ block: 'start' });
+		mobileDetailRef.current?.focus({ preventScroll: true });
+	}, [detailKey]);
+	const showsPmContext = !['states', 'sources', 'committees'].includes(section);
+	const showLeftSidebar = showsPmContext && !sidebarCollapsed;
+	const showSearch = !['states', 'houses'].includes(section);
+	const updatedAt = dashboard.dataSource?.updatedAt;
+	const updatedLabel = updatedAt ? new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(updatedAt)) : 'Not supplied';
 
 	return (
 		<div className={cx(darkMode && 'dark', 'flex h-dvh flex-col overflow-hidden bg-[var(--bz-bg)] text-[var(--bz-text-1)]')}>
@@ -1015,17 +1033,17 @@ function AppShell({
 				<div className="hidden h-5 w-px bg-[var(--bz-border)] sm:block" />
 				<SectionTabs active={section} filters={dashboard.filters} language={language} />
 				{showSearch && <div className="mx-auto hidden min-w-[14rem] max-w-[24rem] flex-1 md:block">
-					<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} primeMinister={dashboard.filters.primeMinister} />
+					<SearchCommand filters={dashboard.filters} />
 				</div>}
 				<div className="ml-auto flex shrink-0 items-center gap-1">
 					<div className="hidden items-center gap-2 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2 py-1 lg:flex">
 						<span className="relative h-2 w-2">
-							<span className="absolute inset-0 rounded-full bg-emerald-500 [animation:bz-pulse_2s_ease-in-out_infinite]" />
+										<span className="absolute inset-0 rounded-full bg-amber-500" />
 						</span>
 						<div className="leading-none">
-							<p className="bz-eyebrow text-[0.5rem]">Updated</p>
+							<p className="bz-eyebrow text-[0.5rem]">Bill records updated</p>
 							<p className="bz-mono mt-0.5 text-[10px] text-[var(--bz-text-2)]">
-								{updatedDate} · {updatedTime}
+								{updatedLabel}
 							</p>
 						</div>
 					</div>
@@ -1040,7 +1058,7 @@ function AppShell({
 						type="button"
 						onClick={() => setSignedInDemo((value) => !value)}
 					>
-						{signedInDemo ? 'Signed In' : 'Sign In'}
+						{signedInDemo ? 'Exit preview' : 'Preview profile'}
 					</button>
 					<button
 						className="hidden rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--bz-text-2)] transition hover:border-[var(--bz-accent)] hover:text-[var(--bz-accent)] bz-focus sm:inline-flex"
@@ -1049,7 +1067,7 @@ function AppShell({
 					>
 						{darkMode ? 'Light' : 'Dark'}
 					</button>
-					<button
+					{showsPmContext && <button
 						className={cx(
 							'hidden rounded-md border px-2.5 py-1 text-[13px] font-medium leading-none transition bz-focus lg:inline-flex',
 							sidebarCollapsed
@@ -1062,11 +1080,11 @@ function AppShell({
 						onClick={() => setSidebarCollapsed((value) => !value)}
 					>
 						≡
-					</button>
+					</button>}
 				</div>
 			</header>
 
-			{signedInDemo && <div className="border-b border-[var(--bz-border)] bg-[var(--bz-accent-3)] px-3 py-2 text-xs text-[var(--bz-text-2)]">Profile mode is active. Saved bill tracking and alerts will connect to real auth later.</div>}
+			{signedInDemo && <div className="border-b border-[var(--bz-border)] bg-[var(--bz-accent-3)] px-3 py-2 text-xs text-[var(--bz-text-2)]">Profile preview. Sign-in, saved tracking, and alerts are not available yet.</div>}
 
 			<div
 				className={cx(
@@ -1088,9 +1106,13 @@ function AppShell({
 				<main className="min-h-0 min-w-0 overflow-y-auto">
 					<div className={cx('space-y-3 p-2 sm:p-3 lg:p-4', section === 'states' ? 'w-full max-w-none' : 'mx-auto max-w-[1120px]')}>
 						{showSearch && <div className="md:hidden">
-							<SearchCommand query={query} language={language} section={section} source={dashboard.filters.source} primeMinister={dashboard.filters.primeMinister} />
+							<SearchCommand filters={dashboard.filters} />
 						</div>}
-						{section !== 'states' && <MobilePrimeMinisterPanel dashboard={dashboard} />}
+						{showsPmContext && <MobilePrimeMinisterPanel dashboard={dashboard} />}
+						{hasAside && detailKey && <div ref={mobileDetailRef} id="selected-record-details" role="region" aria-label="Selected record details" tabIndex={-1} className="scroll-mt-3 overflow-hidden rounded-lg border border-[var(--bz-border)] lg:hidden">
+							<a href={hrefForSection(dashboard.filters, section, { page: String(dashboard.filters.page) })} className="block border-b border-[var(--bz-border)] px-4 py-3 text-sm text-[var(--bz-accent)] bz-focus">Back to results</a>
+							{aside}
+						</div>}
 						{children}
 						<PrsAttributionNotice />
 					</div>
@@ -1103,15 +1125,8 @@ function AppShell({
 
 function SectionTabs({ active, filters, language }: { active: SectionId; filters: DashboardFilters; language: Language }) {
 	const fixedSections: SectionId[] = ['houses', 'states', 'timeline'];
-	const primarySections: SectionId[] = ['bills'];
-	const hiddenSections: SectionId[] = ['committees'];
-	const secondarySections = SECTION_IDS.filter(
-		(section) =>
-			section !== 'overview' &&
-			!fixedSections.includes(section) &&
-			!primarySections.includes(section) &&
-			!hiddenSections.includes(section)
-	);
+	const primarySections: SectionId[] = ['bills', 'committees'];
+	const secondarySections = SECTION_IDS.filter((section) => section !== 'overview' && !fixedSections.includes(section) && !primarySections.includes(section));
 	const linkClass = (section: SectionId) =>
 		cx(
 			'relative z-20 grid h-9 min-w-[4.7rem] shrink-0 select-none place-items-center whitespace-nowrap rounded-md border border-transparent px-2 text-[11px] font-medium leading-none transition bz-focus sm:h-10 sm:min-w-[5.75rem] sm:px-3 sm:text-xs',
@@ -1179,27 +1194,6 @@ function SectionTabs({ active, filters, language }: { active: SectionId; filters
 	);
 }
 
-function LoadTimeNotice() {
-	return (
-		<div className="mb-4 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] px-3 py-2 text-xs leading-5 text-[var(--bz-text-2)]">
-			<span className="font-semibold text-[var(--bz-text-1)]">Loading note:</span> Some sections pull thousands of records from the database, so it may take a second to load everything.
-		</div>
-	);
-}
-
-function ParliamentSessionBanner({ latestActivityDate }: { latestActivityDate: string | null }) {
-	if (!latestActivityDate) return null;
-	const today = new Date();
-	const latest = new Date(`${latestActivityDate}T00:00:00`);
-	const daysSince = Math.floor((today.getTime() - latest.getTime()) / 86_400_000);
-	if (daysSince < 14) return null;
-	return (
-		<div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
-			<span className="font-semibold">Parliament is currently in recess.</span> No bills have been introduced or moved since {formatDate(latestActivityDate)} ({daysSince} days ago). New activity will appear here when sittings resume.
-		</div>
-	);
-}
-
 function PrsAttributionNotice() {
 	return (
 		<footer className="rounded-lg border border-[var(--bz-border)] bg-[var(--bz-surface)] px-4 py-3 text-[11px] leading-5 text-[var(--bz-text-2)] sm:px-5">
@@ -1222,32 +1216,25 @@ function PrsAttributionNotice() {
 	);
 }
 
-function SearchCommand({
-	query,
-	language,
-	section,
-	source = 'all',
-	primeMinister = 'all'
-}: {
-	query: string;
-	language: Language;
-	section: SectionId;
-	source?: string;
-	primeMinister?: string;
-}) {
+function RecordCoverageNotice({ latestActivityDate, updatedAt, sourceCheck }: { latestActivityDate: string | null; updatedAt?: string | null; sourceCheck?: { checkedAt: string; since: string } }) {
+	return <div className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface)] px-3 py-2 text-xs leading-5 text-[var(--bz-text-2)]">
+		{latestActivityDate && <span>Latest activity in these bill records: <b>{formatDate(latestActivityDate)}</b>. </span>}
+		<span>{updatedAt ? `Bill records updated ${formatDate(updatedAt.slice(0, 10))}.` : 'Bill record update time has not been supplied.'} Parliamentary session status is not inferred from these records.</span>
+		{sourceCheck && <p>Official bill source checked {formatDate(sourceCheck.checkedAt.slice(0, 10))} for bills introduced since {formatDate(sourceCheck.since)}. Earlier records use archive snapshots.</p>}
+	</div>;
+}
+
+function sectionSearchPlaceholder(filters: DashboardFilters) {
+	if (filters.language === 'hi') return 'इस अनुभाग में खोजें';
+	return ({ committees: 'Search committees', sources: 'Search source names or coverage', debates: 'Search debates or summaries', questions: 'Search questions or catalogs', acts: 'Search Acts' } as Partial<Record<string, string>>)[filters.section] ?? t('label.searchPlaceholder', filters.language);
+}
+
+function SearchCommand({ filters }: { filters: DashboardFilters }) {
 	return (
 		<form action="/" method="GET" className="relative">
-			<input type="hidden" name="section" value={section} />
-			<input type="hidden" name="lang" value={language} />
-			{source !== 'all' && <input type="hidden" name="source" value={source} />}
-			{primeMinister !== 'all' && <input type="hidden" name="pm" value={primeMinister} />}
+			{Object.entries({ section: filters.section, lang: filters.language, house: filters.house, status: filters.status, area: filters.area, source: filters.source, pm: filters.primeMinister, date: filters.date, pageSize: String(filters.pageSize) }).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
 			<span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--bz-accent)]">⌕</span>
-			<input
-				name="q"
-				defaultValue={query}
-				placeholder={t('label.searchPlaceholder', language)}
-				className="h-9 w-full rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] pl-8 pr-3 text-xs text-[var(--bz-text-1)] outline-none placeholder:text-[var(--bz-text-3)] focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10"
-			/>
+			<input name="q" defaultValue={filters.query} placeholder={sectionSearchPlaceholder(filters)} className="h-9 w-full rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] pl-8 pr-3 text-xs text-[var(--bz-text-1)] outline-none placeholder:text-[var(--bz-text-3)] focus:border-[var(--bz-accent)]" />
 		</form>
 	);
 }
@@ -1579,17 +1566,21 @@ function FilterBar({
 	stageCounts: StageCount[];
 	areaCounts: AreaCount[];
 }) {
-	const visibleStageOptions = stageCounts.length
-		? stageCounts
-				.slice()
-				.sort((left: StageCount, right: StageCount) => right.count - left.count)
-				.map(({ stage, count }) => ({ stage, count }))
-		: stageOptions.map((stage) => ({ stage, count: 0 }));
+	const stageCountByStage = new Map(stageCounts.map(({ stage, count }) => [stage, count]));
+	const visibleStageOptions = stageOptions.map((stage) => ({ stage, count: stageCountByStage.get(stage) ?? 0 })).sort((left, right) => right.count - left.count);
 	const visibleAreaOptions = areaCounts
 		.slice()
 		.sort((left, right) => right.count - left.count)
 		.map(({ area, count }) => ({ area, count, label: ministryLabel(area) }));
+	if (filters.area !== 'all' && !visibleAreaOptions.some(({ area }) => area === filters.area)) {
+		visibleAreaOptions.push({ area: filters.area, count: 0, label: ministryLabel(filters.area) });
+	}
 	const isHousesSection = filters.section === 'houses';
+	const showsStage = ['overview', 'bills', 'timeline', 'acts', 'debates'].includes(filters.section);
+	const showsArea = showsStage || filters.section === 'questions';
+	const showsDate = filters.section === 'overview' || filters.section === 'timeline';
+	const showsHouse = filters.section !== 'sources';
+	const showsPrimeMinister = !['sources', 'committees'].includes(filters.section);
 	const filterGridClass = isHousesSection
 		? 'bz-panel grid max-w-full gap-3 overflow-visible rounded-lg p-3 md:grid-cols-2 xl:grid-cols-4'
 		: 'bz-panel grid max-w-full gap-3 overflow-visible rounded-lg p-3 md:grid-cols-2 xl:grid-cols-6';
@@ -1611,27 +1602,31 @@ function FilterBar({
 		<form key={formKey} className={filterGridClass} action="/" method="GET">
 			<input type="hidden" name="section" value={filters.section} />
 			<input type="hidden" name="lang" value={filters.language} />
+			<input type="hidden" name="pageSize" value={filters.pageSize} />
 			{filters.source !== 'all' && <input type="hidden" name="source" value={filters.source} />}
-			{isHousesSection && filters.area !== 'all' && <input type="hidden" name="area" value={filters.area} />}
-			{isHousesSection && filters.status !== 'all' && <input type="hidden" name="status" value={filters.status} />}
+			{!showsArea && filters.area !== 'all' && <input type="hidden" name="area" value={filters.area} />}
+			{!showsStage && filters.status !== 'all' && <input type="hidden" name="status" value={filters.status} />}
+			{!showsDate && filters.date && <input type="hidden" name="date" value={filters.date} />}
+			{!showsHouse && <input type="hidden" name="house" value={filters.house} />}
+			{!showsPrimeMinister && <input type="hidden" name="pm" value={filters.primeMinister} />}
 			<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 				{t('field.search', filters.language)}
 				<input
 					name="q"
 					defaultValue={filters.query}
-					placeholder={t('label.searchPlaceholder', filters.language)}
+					placeholder={sectionSearchPlaceholder(filters)}
 					className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none placeholder:text-[var(--bz-text-3)] focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10"
 				/>
 			</label>
-			<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
+			{showsHouse && <label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 				{t('field.house', filters.language)}
 				<select name="house" defaultValue={filters.house} className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
 					<option value="all">{t('field.allHouses', filters.language)}</option>
 					<option value="lok-sabha">{houseLabelsLocalized[filters.language]['lok-sabha']}</option>
 					<option value="rajya-sabha">{houseLabelsLocalized[filters.language]['rajya-sabha']}</option>
 				</select>
-			</label>
-			{!isHousesSection && (
+			</label>}
+			{showsArea && (
 				<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 					Policy area
 					<select name="area" defaultValue={filters.area} className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
@@ -1644,7 +1639,7 @@ function FilterBar({
 					</select>
 				</label>
 			)}
-			<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
+			{showsPrimeMinister && <label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 				Prime Minister
 				<select name="pm" defaultValue={filters.primeMinister} className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
 					<option value="all">All PM terms</option>
@@ -1654,9 +1649,9 @@ function FilterBar({
 						</option>
 					))}
 				</select>
-			</label>
-			<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
-				{t('field.sessionDay', filters.language)}
+			</label>}
+			{showsDate && <label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
+				Events on or before
 				<span className="sr-only">{sessionName}</span>
 				<input
 					type="date"
@@ -1664,8 +1659,8 @@ function FilterBar({
 					defaultValue={filters.date}
 					className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10"
 				/>
-			</label>
-			{!isHousesSection && (
+			</label>}
+			{showsStage && (
 				<label className="grid min-w-0 gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--bz-text-3)]">
 					{t('field.billStage', filters.language)}
 					<select name="status" defaultValue={filters.status} className="min-h-9 min-w-0 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-xs normal-case tracking-normal text-[var(--bz-text-1)] outline-none focus:border-[var(--bz-accent)] focus:ring-2 focus:ring-amber-500/10">
@@ -1997,7 +1992,8 @@ function requestAiBillAnalysis(billId: string, language: Language, analysisKey: 
 				throw new Error(`AI analysis request failed with HTTP ${response.status}.`);
 			}
 			const payload = (await response.json()) as AiBillAnalysisResponse;
-			return payload.analysis;
+			if (payload.source !== 'gemma' || payload.provider !== 'gemma') throw new Error('AI provider did not return a generated analysis.');
+			return { ...payload.analysis, source: 'gemma' as const, model: payload.model, generatedAt: payload.generatedAt };
 		})
 		.catch((error) => {
 			aiAnalysisClientRequests.delete(analysisKey);
@@ -2030,76 +2026,6 @@ function requestAiDebateSummary(debateId: string, language: Language, summaryKey
 
 	aiDebateSummaryClientRequests.set(summaryKey, request);
 	return request;
-}
-
-function BillAnalysisPanel({
-	bill,
-	actions = [],
-	language,
-	analysis,
-	analysisStatus = 'local'
-}: {
-	bill: Bill | null;
-	actions?: BillAction[];
-	language: Language;
-	analysis?: BillAnalysis | null;
-	analysisStatus?: AnalysisStatus;
-}) {
-	if (!bill) {
-		return (
-			<aside className="bz-panel rounded-lg p-4">
-				<p className="bz-eyebrow text-[var(--bz-accent)]">Bill analysis</p>
-				<h2 className="mt-2 text-base font-semibold text-[var(--bz-text-1)]">Select a bill</h2>
-				<p className="mt-2 text-sm leading-6 text-[var(--bz-text-2)]">Click a bill row to see a plain-language explanation, stage read, and what to watch next.</p>
-			</aside>
-		);
-	}
-
-	const billAnalysis = analysis ?? buildBillAnalysis(bill, actions, language);
-
-	return (
-		<aside className="bz-panel rounded-lg p-4 xl:sticky xl:top-16 xl:self-start">
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<div className="flex flex-wrap items-center gap-2">
-					<p className="bz-eyebrow text-[var(--bz-accent)]">Bill analysis</p>
-					<StatusBadge stage={bill.current_stage} language={language} />
-				</div>
-				<AnalysisStatusBadge status={analysisStatus} />
-			</div>
-			<h2 className="mt-2 text-base font-semibold leading-6 text-[var(--bz-text-1)]">{billAnalysis.subject}</h2>
-			<p className="mt-3 rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] p-3 text-[13px] leading-6 text-[var(--bz-text-2)]">{billAnalysis.plainLanguageSummary}</p>
-
-			<div className="mt-4 grid gap-2">
-				<AnalysisNote label="Why it matters" value={billAnalysis.whyItMatters} />
-				<EconomicImpactNote value={billAnalysis.gdpImpact} />
-				<AnalysisNote label="Current read" value={billAnalysis.stageExplanation} />
-				<AnalysisNote label="Movement so far" value={billAnalysis.movementSummary} />
-				<AnalysisNote label="Record coverage" value={billAnalysis.recordCoverage} />
-				<AnalysisNote label="Data quality" value={billAnalysis.dataQuality} />
-			</div>
-
-			<div className="mt-4">
-				<p className="bz-eyebrow">What to watch next</p>
-				<ul className="mt-2 space-y-2">
-					{billAnalysis.nextWatchItems.map((item) => (
-						<li className="rounded-md border border-[var(--bz-border)] bg-[var(--bz-surface-2)] px-3 py-2 text-[12px] leading-5 text-[var(--bz-text-2)]" key={item}>
-							{item}
-						</li>
-					))}
-				</ul>
-			</div>
-
-			{analysisStatus === 'ai' && (
-				<div className="mt-4 flex items-center justify-end gap-1.5 border-t border-[var(--bz-border)] pt-3">
-					<svg className="h-3 w-3 text-[var(--bz-text-3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-						<path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" />
-						<path d="M12 8v4l3 3" />
-					</svg>
-					<span className="text-[10.5px] text-[var(--bz-text-3)]">Made possible with Gemma 4</span>
-				</div>
-			)}
-		</aside>
-	);
 }
 
 function AnalysisStatusBadge({ status }: { status: AnalysisStatus }) {
@@ -2284,9 +2210,9 @@ function getStageExplanation(bill: Bill, language: Language) {
 		return `${stage} means the bill has moved beyond introduction and is now in a passage or second-House phase. The next important signal is whether the other House acts, returns recommendations, or the constitutional time window closes.`;
 	}
 
-	if (['president_assent_pending', 'assented', 'act_published'].includes(bill.current_stage)) {
-		return `${stage} means the bill is at or beyond the final assent/publication stage. The most important follow-up is connecting it to the Act text and India Code record.`;
-	}
+	if (bill.current_stage === 'president_assent_pending') return `${stage} means parliamentary passage is recorded and presidential assent is still pending in the captured data.`;
+	if (bill.current_stage === 'assented') return `${stage} means presidential assent is recorded. Gazette publication and commencement must be checked separately in the official Act and notifications.`;
+	if (bill.current_stage === 'act_published') return `${stage} means publication of the Act is recorded. Check the Act and commencement notifications for when its provisions take effect.`;
 
 	if (['withdrawn', 'lapsed'].includes(bill.current_stage)) {
 		return `${stage} means the bill is no longer moving in the normal passage path. The explanation should focus on why it stopped and whether a replacement bill appears later.`;
@@ -2986,7 +2912,7 @@ function BillDetailPanel({
 				</div>
 				<dl className="mt-5 grid grid-cols-2 gap-2 text-xs">
 					<DetailTerm label={t('field.originHouse', language)} value={houseLabelsLocalized[language][bill.origin_house]} />
-					<DetailTerm label="Introduced by" value={introducedBy} />
+					<DetailTerm label={extractIntroducedBy(bill) ? 'Introduced by' : 'Responsible ministry'} value={introducedBy} />
 					<DetailTerm label={t('field.billNumber', language)} value={bill.bill_number} mono />
 					<DetailTerm label={t('field.introduced', language)} value={formatDate(bill.introduced_on)} />
 					<DetailTerm label={t('field.latestAction', language)} value={formatDate(bill.latest_action_date)} />
@@ -3043,7 +2969,7 @@ function TimelineRail({ events, dateRail = [], groups }: { events: TimelineEvent
 					<span className="rounded-md border border-[var(--bz-border)] px-3 py-1.5 text-sm text-[var(--bz-text-2)]">{events.length} events</span>
 				</div>
 				<p className="mb-3 max-w-3xl text-xs leading-5 text-[var(--bz-text-2)]">
-					Showing all matching events, newest first. Choose a date below to focus the rail without hiding older records.
+					Showing this page of matching events, newest first. Choose a date to start on or before that day. Date counts reflect this page.
 				</p>
 				{dateRail.length > 0 && (
 					<nav aria-label="Timeline dates" className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]">

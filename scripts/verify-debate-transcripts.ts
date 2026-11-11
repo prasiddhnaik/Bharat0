@@ -25,10 +25,13 @@ async function main() {
 	});
 
 	assert.equal(dashboard.dataSource.mode, 'prisma');
-	assert.equal(dashboard.pagination.totalItems, 1);
-	assert.equal(dashboard.debates[0]?.id, 'debate-tribhuvan-bill-passed');
-	assert.equal(dashboard.debates[0]?.members.length > 0, true);
-	assert.equal(dashboard.debates[0]?.isDemoSeed, false);
+	assert.ok(dashboard.pagination.totalItems >= 1, 'refreshed index may include introduction and passage proceedings');
+	const curated = dashboard.debates.find((debate) => debate.id === 'debate-tribhuvan-bill-passed');
+	assert.ok(curated, 'curated passage record and its transcript link must survive refresh');
+	assert.ok(curated.members.length > 0);
+	assert.equal(curated.isDemoSeed, false);
+	const identities = dashboard.debates.map((debate) => `${debate.date}:${debate.title.toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]/g, '')}`);
+	assert.equal(new Set(identities).size, identities.length, 'new index entries must not duplicate curated proceedings');
 
 	const transcript = await prisma.debateTranscript.findUnique({
 		where: { debate_id: 'debate-tribhuvan-bill-passed' }

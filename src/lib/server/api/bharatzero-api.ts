@@ -1,3 +1,4 @@
+import { readIngestionStatus } from '$lib/server/ingestion-status';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseDashboardFilters } from '$lib/domain/dashboard-filters';
 import { getLokSabhaPowerSnapshotForPrimeMinister, lokSabhaPowerSnapshots } from '$lib/domain/parliament-houses';
@@ -378,6 +379,10 @@ export async function handleBharatZeroApi(request: IncomingMessage, response: Se
 		}
 
 		const debateAiSummaryMatch = url.pathname.match(/^\/api\/debates\/([^/]+)\/ai-summary$/);
+		if (url.pathname === '/api/sources/status') {
+			sendJson(response, 200, { schedule: { frequency: 'weekly', day: 'Monday', time: '09:00', timezone: 'Asia/Kolkata' }, sources: await readIngestionStatus(getPrismaClient()) });
+			return;
+		}
 		if (debateAiSummaryMatch) {
 			try {
 				const debateId = decodeURIComponent(debateAiSummaryMatch[1]);

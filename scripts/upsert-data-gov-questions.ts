@@ -6,7 +6,8 @@ import { createPrismaClient } from '../src/lib/server/db/prisma';
 import { assertEnv, safeDbUrl } from './lib/envCheck';
 import { parseFlags } from './lib/flags';
 import { makeLogger } from './lib/logger';
-import { chunkInsert, formatCountMap, guardNonEmpty, sumCounts } from './lib/upsertHelpers';
+import { formatCountMap, guardNonEmpty, sumCounts } from './lib/upsertHelpers';
+import { mkdir, writeFile } from 'node:fs/promises';
 
 const log = makeLogger('DATA-GOV');
 const flags = parseFlags(['dry-run', 'allow-empty']);
@@ -64,15 +65,18 @@ async function main() {
 		return;
 	}
 
+	const backupDir = `artifacts/data-refresh-${new Date().toISOString().slice(0, 10)}`;
+	await mkdir(backupDir, { recursive: true });
+	const [questions, timelineEvents] = await Promise.all([
+		prisma.question.findMany({ where: { id: { startsWith: 'data-gov-' } } }),
+		prisma.timelineEvent.findMany({ where: { id: { startsWith: 'data-gov-' } } })
+	]);
+	await writeFile(`${backupDir}/ogd-backup-${Date.now()}.json`, JSON.stringify({ questions, timelineEvents }, null, 2));
 	const insertedCounts = await prisma.$transaction(
 		async (tx) => {
-			await tx.timelineEvent.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
-			await tx.question.deleteMany({ where: { id: { startsWith: 'data-gov-' } } });
-
-			return {
-				questions: await chunkInsert(questionRows, 500, (chunk) => tx.question.createMany({ data: chunk, skipDuplicates: true })),
-				timelineEvents: await chunkInsert(timelineRows, 500, (chunk) => tx.timelineEvent.createMany({ data: chunk, skipDuplicates: true }))
-			};
+			for (const row of questionRows) await tx.question.upsert({ where: { id: row.id }, create: row, update: row });
+			for (const row of timelineRows) await tx.timelineEvent.upsert({ where: { id: row.id }, create: row, update: row });
+			return sourceCounts;
 		},
 		{ timeout: 60_000 }
 	);

@@ -10,8 +10,7 @@ export function hrefForSection(
 		section,
 		lang: filters.language,
 		page: params.page ?? '1',
-		pageSize: params.pageSize ?? String(filters.pageSize),
-		...params
+		pageSize: params.pageSize ?? String(filters.pageSize)
 	});
 
 	if (filters.query) search.set('q', filters.query);
@@ -21,6 +20,8 @@ export function hrefForSection(
 	if (filters.source !== 'all' && !(section === 'bills' && filters.source === 'source-data-gov')) search.set('source', filters.source);
 	if (filters.primeMinister !== 'all') search.set('pm', filters.primeMinister);
 	if (filters.date) search.set('date', filters.date);
+	for (const [key, value] of Object.entries(params)) search.set(key, value);
+	if (section === 'bills' && search.get('source') === 'source-data-gov') search.delete('source');
 
 	return `/?${search.toString()}`;
 }

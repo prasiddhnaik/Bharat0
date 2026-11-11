@@ -64,6 +64,18 @@ const metadataProfile = getEconomicImpactProfile(metadataOnlyBill, '2026-05-02')
 assert.equal(metadataProfile.category, 'Digital, data, and communications');
 assert.equal(metadataProfile.confidence, 'low');
 
+const nameChangeBill: Bill = {
+	...metadataOnlyBill,
+	title_en: 'The Kerala (Alteration of Name) Bill, 2026',
+	ministry: 'Ministry of Home Affairs',
+	current_stage: 'assented',
+	summary: 'The Kerala (Alteration of Name) Bill, 2026 is a Government Bill from Ministry of Home Affairs with status Assented in the Sansad legislation dataset.'
+};
+assert.equal(getEconomicImpactProfile(nameChangeBill).category, 'Justice, security, and administration');
+const nameChangeImpact = formatEconomicImpactForPanel(nameChangeBill);
+assert.match(nameChangeImpact, /Insufficient evidence/);
+assert.doesNotMatch(nameChangeImpact, /digital compliance|platform investment|Transmission:/);
+
 const publishedDigitalBill: Bill = {
 	...metadataOnlyBill,
 	current_stage: 'act_published',
