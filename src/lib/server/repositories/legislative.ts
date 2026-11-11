@@ -1,5 +1,4 @@
 import type { BillDetailData, DashboardData } from '$lib/data/view-model';
-import { dataGovMeta } from '$lib/data/generated/data-gov-questions';
 import type { IngestionRunRow, SourceRefreshStatus } from '$lib/domain/ingestion-status';
 import { readIngestionStatus } from '$lib/server/ingestion-status';
 import type { DashboardFilters } from '$lib/domain/dashboard-filters';
@@ -118,7 +117,7 @@ const repositorySources: SourceEntry[] = [
 		name: 'Open Government Data Platform India',
 		kind: 'data-gov',
 		url: 'https://data.gov.in/',
-		preparedFor: `Using ${dataGovMeta.questionCatalogs.toLocaleString('en-IN')} Rajya Sabha question-answer catalogs and ${dataGovMeta.debateCatalogs.toLocaleString('en-IN')} verbatim debate catalogs discovered from OGD India.`,
+		preparedFor: 'Rajya Sabha question-answer catalogs and English verbatim debate catalogs from OGD India. Catalog references contain metadata and official links.',
 		status: 'using-now'
 	},
 	{
@@ -405,10 +404,6 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				filters.house === 'all' ? {} : { house: fromDomainHouse(filters.house) },
 				filters.query.trim() ? { name: { contains: filters.query.trim(), mode: 'insensitive' } } : {}
 			);
-			const filteredSources = repositorySources.filter((source) =>
-				(filters.source === 'all' || source.id === filters.source) &&
-				(!filters.query.trim() || `${source.name} ${source.preparedFor}`.toLowerCase().includes(filters.query.trim().toLowerCase()))
-			);
 			const debateFindArgs = {
 				where: debateWhere,
 				orderBy: { date: 'desc' },
@@ -477,6 +472,13 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 				readIngestionStatus(prisma)
 			]);
 
+			const catalogCheck = refreshes.find((row) => row.source === 'catalogs');
+			const filteredSources = repositorySources.map((source) => source.id === 'source-data-gov' && catalogCheck?.coverage
+				? { ...source, preparedFor: catalogCheck.coverage }
+				: source).filter((source) =>
+				(filters.source === 'all' || source.id === filters.source) &&
+				(!filters.query.trim() || `${source.name} ${source.preparedFor}`.toLowerCase().includes(filters.query.trim().toLowerCase()))
+			);
 			const timelineEvents = timelineEventRows.map(toDomainTimelineEvent);
 			const sittingDays = sittingDayRows.map(toDomainSittingDay);
 			const committees = committeeRows.map(toDomainCommittee);
@@ -506,7 +508,6 @@ function createPrismaRepository(prisma: PrismaReadClient): LegislativeRepository
 			const billCheck = refreshes.find((row) => row.source === 'bills');
 			const debateCheck = refreshes.find((row) => row.source === 'debates');
 			const questionCheck = refreshes.find((row) => row.source === 'questions');
-			const catalogCheck = refreshes.find((row) => row.source === 'catalogs');
 			return {
 				seedMeta: repositorySeedMeta,
 				filters,

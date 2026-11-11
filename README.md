@@ -170,7 +170,7 @@ The PDL upsert replaces prior `pdl-*` records before inserting the regenerated h
 
 ## Weekly Automatic Updates
 
-The GitHub Actions workflow runs every Monday at **09:00 IST** (03:30 UTC). It refreshes current-term bills and Acts, the 18th Lok Sabha government-bill proceedings index, the newest two Rajya Sabha question sessions, and the existing 18 OGD catalogs. The job uses the repository's `DATABASE_URL` Actions secret and the live Mumbai OGD metadata endpoint.
+The GitHub Actions workflow runs every Monday at **09:00 IST** (03:30 UTC). It refreshes current-term bills and Acts, the 18th Lok Sabha government-bill proceedings index, the newest two Rajya Sabha question sessions, and newly published OGD question and English verbatim-debate catalogs. Each weekly run paginates the four official parliamentary catalog groups, discovers supported catalogs without editing a session list, and imports their metadata and official links. Other OGD catalog families are outside this importer’s coverage. The job uses the repository's `DATABASE_URL` Actions secret and the live Mumbai OGD metadata endpoint.
 
 Run the same pipeline locally:
 

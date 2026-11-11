@@ -7,6 +7,11 @@ let debateCountCalls = 0;
 const committeeFindWhere: unknown[] = [];
 
 const fakePrisma = {
+	ingestionRun: {
+		async findMany({ where }: { where: { source: string } }) {
+			return where.source === 'catalogs' ? [{ source: 'catalogs', status: 'succeeded', started_at: '2026-11-11T13:00:00Z', completed_at: '2026-11-11T13:01:00Z', summary: { coverage: '32 OGD question catalogs and 2 debate catalogs; discovered weekly; metadata only', sourceRows: 34 } }] : [];
+		}
+	},
 	bill: {
 		async count(args?: { where?: unknown }) {
 			billCountWhereClauses.push(args?.where ?? {});
@@ -248,6 +253,9 @@ assert.equal(allDebatesDashboard.pagination.totalItems, allDebatesDashboard.deba
 
 const sourcesSearch = await repository.getDashboardData({ ...allDebatesDashboard.filters, section: 'sources', query: 'xxxxxxxx' });
 assert.equal(sourcesSearch.sources.length, 0, 'source search must exclude nonmatching source families');
+const catalogSources = await repository.getDashboardData({ ...allDebatesDashboard.filters, section: 'sources', query: '32 OGD' });
+assert.equal(catalogSources.sources.length, 1, 'source search must use the persisted discovery coverage');
+assert.match(catalogSources.sources[0].preparedFor, /32 OGD question catalogs and 2 debate catalogs/);
 await repository.getDashboardData({ ...allDebatesDashboard.filters, section: 'committees', query: 'finance', house: 'lok-sabha' });
 assert.match(JSON.stringify(committeeFindWhere.at(-1)), /finance/, 'committee query must reach the database');
 assert.match(JSON.stringify(committeeFindWhere.at(-1)), /LOK_SABHA/, 'committee House must reach the database');

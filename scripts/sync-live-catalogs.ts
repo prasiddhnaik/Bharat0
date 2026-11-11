@@ -7,12 +7,12 @@ import { fetchJson, sameFields, runCli } from './lib/refresh';
 
 export async function syncLiveCatalogs(dryRun = false) {
 	const endpoint = process.env.OGD_CATALOG_ENDPOINT;
-	const { results, checkedAt } = endpoint
+	const { results, checkedAt, discovery } = endpoint
 		? validateOgdSnapshot(await fetchJson(endpoint))
 		: await fetchOgdSnapshot();
 	const dir = `artifacts/data-refresh-${checkedAt.slice(0, 10)}`;
 	await mkdir(dir, { recursive: true });
-	await writeFile(`${dir}/catalogs-snapshot.json`, JSON.stringify({ checkedAt, results }, null, 2));
+	await writeFile(`${dir}/catalogs-snapshot.json`, JSON.stringify({ checkedAt, discovery, results }, null, 2));
 	const catalogs = results.map((result) => {
 		const metadata = result.metadata?.dataGovCatalog;
 		const date = toIsoDate(metadata?.updatedDate);
@@ -27,7 +27,7 @@ export async function syncLiveCatalogs(dryRun = false) {
 		const questionPlans = questions.map((row) => ({ row, old: oldQuestions.find((old) => old.id === row.id) }));
 		const debatePlans = debates.map((row) => ({ row, old: oldDebates.find((old) => old.id === row.id) }));
 		const plans = [...questionPlans, ...debatePlans];
-		const summary = { checkedAt, coverage: `${questions.length} OGD question catalogs and ${debates.length} debate catalogs; metadata only`, sourceUrl: 'https://data.gov.in/', sourceRows: catalogs.length, inserted: plans.filter(({ old }) => !old).length, updated: plans.filter(({ row, old }) => old && !sameFields(old, row)).length, latestActivityDate: catalogs.map(({ date }) => new Date(date.getTime() + 19_800_000).toISOString().slice(0, 10)).sort().at(-1)! };
+		const summary = { checkedAt, coverage: `${questions.length} OGD question catalogs and ${debates.length} debate catalogs; discovered weekly; metadata only`, sourceUrl: 'https://data.gov.in/', sourceRows: catalogs.length, discoveryGroups: discovery.length, indexedCatalogs: discovery.reduce((total, index) => total + index.total, 0), inserted: plans.filter(({ old }) => !old).length, updated: plans.filter(({ row, old }) => old && !sameFields(old, row)).length, latestActivityDate: catalogs.map(({ date }) => new Date(date.getTime() + 19_800_000).toISOString().slice(0, 10)).sort().at(-1)! };
 		if (dryRun) return summary;
 		await writeFile(`${dir}/catalogs-backup-${Date.now()}.json`, JSON.stringify({ questions: oldQuestions, debates: oldDebates }, null, 2));
 		await db.$transaction(async (tx) => {

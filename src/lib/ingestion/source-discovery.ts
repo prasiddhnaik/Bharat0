@@ -28,7 +28,7 @@ export type SourceDiscoveryResult = SourceDiscoveryTarget & {
 	error?: string;
 };
 
-function rajyaSabhaQuestionSessionTarget(session: number): SourceDiscoveryTarget {
+export function rajyaSabhaQuestionSessionTarget(session: number): SourceDiscoveryTarget {
 	const slug = `answers-data-rajya-sabha-questions-session-${session}`;
 
 	return {
