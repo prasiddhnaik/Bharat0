@@ -3,6 +3,7 @@ import { createPrismaClient } from '../src/lib/server/db/prisma';
 import { BillStage, BillType, House, TimelineEventType } from '../src/generated/prisma/enums';
 import { loadRecentSansadBills, matchBillNumber, normalizeActions, normalizeAct, normalizeBill, normalizeTimelineEvents, type SansadBillsPayload, type SansadBillRecord } from '../src/lib/ingestion/sansad-bills';
 import { fetchJson, runCli } from './lib/refresh';
+import { applyCommitteeReferrals, loadCommitteeReferrals } from '../src/lib/ingestion/sansad-committee-referrals';
 
 const since = '2024-06-09';
 const artifactDir = `artifacts/data-refresh-${new Date().toISOString().slice(0, 10)}`;
@@ -23,11 +24,13 @@ export async function syncLiveBills(dryRun = false) {
 		return payload;
 	}, since);
 	if (!snapshot.records.length) throw new Error('No current-term records returned; refusing an empty refresh.');
+	const referrals = await loadCommitteeReferrals((url) => fetchJson(url));
 	const checkedAt = new Date().toISOString();
 	await writeFile(`${artifactDir}/sansad-snapshot.json`, JSON.stringify({ checkedAt, ...snapshot }, null, 2));
+	await writeFile(`${artifactDir}/committee-referrals-snapshot.json`, JSON.stringify({ checkedAt, ...referrals }, null, 2));
 
 	const unique = new Map<string, SansadBillRecord>();
-	for (const record of snapshot.records) {
+	for (const record of applyCommitteeReferrals(snapshot.records, referrals.records)) {
 		const bill = normalizeBill(record);
 		const key = `${bill.id}:${record.billNumber}:${bill.origin_house}`;
 		const previous = unique.get(key);
@@ -69,8 +72,9 @@ export async function syncLiveBills(dryRun = false) {
 			db.timelineEvent.findMany({ where: { related_bill_id: { in: ids } } }),
 			db.act.findMany({ where: { linked_bill_id: { in: ids } } })
 		]);
-		const summary = { checkedAt, sourceUrl: snapshot.sourceUrl, coverage: `Bills introduced since ${since}; actions and linked Acts`, since, pages: snapshot.pages, sourceRows: snapshot.records.length, uniqueBills: plans.length, inserted: plans.filter((p) => !p.match).length, updated: plans.filter((p) => p.match && p.changed).length, retainedNewer: plans.filter((p) => p.older).length, latestActivityDate: plans.map(({ bill }) => bill.latest_action_date).sort().at(-1) ?? null };
+		const summary = { checkedAt, sourceUrl: snapshot.sourceUrl, coverage: `Bills introduced since ${since}; actions, linked Acts and official committee referrals`, since, pages: snapshot.pages, sourceRows: snapshot.records.length, committeeReferralRows: referrals.records.length, uniqueBills: plans.length, inserted: plans.filter((p) => !p.match).length, updated: plans.filter((p) => p.match && p.changed).length, retainedNewer: plans.filter((p) => p.older).length, latestActivityDate: plans.map(({ bill }) => bill.latest_action_date).sort().at(-1) ?? null };
 		console.log(JSON.stringify({ dryRun, ...summary }, null, 2));
+		await writeFile(`${artifactDir}/bills-change-plan.json`, JSON.stringify(plans.filter((plan) => plan.changed).map(({ bill, fields, match }) => ({ id: bill.id, title: fields.title_en, previous: match ? { stage: match.current_stage, latestActionDate: iso(match.latest_action_date) } : null, next: { stage: fields.current_stage, latestActionDate: iso(fields.latest_action_date) } })), null, 2));
 		if (dryRun) return summary;
 		await writeFile(`${artifactDir}/backup-${checkedAt.replaceAll(':', '-')}.json`, JSON.stringify({ bills: existing.filter((row) => ids.includes(row.id)), actions, events, acts }, null, 2));
 		const actionRows = plans.flatMap(({ bill, record }) => normalizeActions(record, bill).map((action) => {

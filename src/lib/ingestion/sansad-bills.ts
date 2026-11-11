@@ -18,6 +18,8 @@ export type SansadBillRecord = {
 	billPassedInBothHousesFile: string | null;
 	errataFile: string | null;
 	referredToCommitteeDate: string | null;
+	committeeReferralUrl?: string;
+	committeeReportUrl?: string;
 	reportPresentedDate: string | null;
 	reportFile: string | null;
 	actNo: string | null;
@@ -184,6 +186,7 @@ export function latestDateFor(record: SansadBillRecord): string {
 	const candidates = [
 		toIsoDate(record.billAssentedDate),
 		toIsoDate(record.reportPresentedDate),
+		toIsoDate(record.referredToCommitteeDate),
 		toIsoDate(record.billPassedInRSDate),
 		toIsoDate(record.billPassedInLSDate),
 		toIsoDate(record.billIntroducedDate),
@@ -242,8 +245,8 @@ export function normalizeActions(record: SansadBillRecord, bill: Bill): BillActi
 	if (!record.stages?.length) {
 		const rows: Array<{ date: string | null; type: TimelineEventType; label: string; house: House; url: string | null }> = [
 			{ date: record.billIntroducedDate, type: 'bill_introduced', label: 'Introduced', house: bill.origin_house, url: record.billIntroducedFile },
-			{ date: record.referredToCommitteeDate, type: 'bill_referred_committee', label: 'Referred to committee', house: bill.origin_house, url: record.reportFile },
-			{ date: record.reportPresentedDate, type: 'committee_report_tabled', label: 'Committee report presented', house: bill.origin_house, url: record.reportFile },
+			{ date: record.referredToCommitteeDate, type: 'bill_referred_committee', label: 'Referred to committee', house: bill.origin_house, url: record.committeeReferralUrl ?? record.reportFile },
+			{ date: record.reportPresentedDate, type: 'committee_report_tabled', label: 'Committee report presented', house: bill.origin_house, url: record.committeeReportUrl ?? record.reportFile },
 			{ date: record.billPassedInLSDate, type: bill.origin_house === 'lok-sabha' ? 'bill_passed_origin_house' : 'bill_passed_second_house', label: 'Passed by Lok Sabha', house: 'lok-sabha', url: record.billPassedInLSFile },
 			{ date: record.billPassedInRSDate, type: bill.origin_house === 'rajya-sabha' ? 'bill_passed_origin_house' : 'bill_passed_second_house', label: 'Passed by Rajya Sabha', house: 'rajya-sabha', url: record.billPassedInRSFile },
 			{ date: record.billAssentedDate, type: 'bill_assented', label: "Received President's assent", house: bill.origin_house, url: record.billGazettedFile }

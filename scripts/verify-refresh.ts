@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { normalizeActions, normalizeAct, normalizeBill, type SansadBillRecord } from '../src/lib/ingestion/sansad-bills';
 import * as sansad from '../src/lib/ingestion/sansad-bills';
 import { normalizeParliamentDebate } from '../src/lib/ingestion/sansad-debates';
+import { applyCommitteeReferrals, committeeReferralSource, loadCommitteeReferrals } from '../src/lib/ingestion/sansad-committee-referrals';
 
 const record: SansadBillRecord = {
 	billNumber: '155', billName: 'THE KERALA (ALTERATION OF NAME) BILL, 2026',
@@ -20,6 +21,63 @@ test('an Act number and assent date do not imply a captured Gazette publication'
 	const bill = normalizeBill(record);
 	assert.equal(bill.current_stage, 'assented');
 	assert.equal(bill.latest_action_date, '2026-08-14');
+});
+
+test('a committee referral advances the latest bill action date', () => {
+	const referred = { ...record, status: 'Pending', billPassedInLSDate: null, billPassedInRSDate: null, billAssentedDate: null, referredToCommitteeDate: '2026-08-31 00:00:00.0' };
+	const bill = normalizeBill(referred);
+	assert.equal(bill.current_stage, 'referred_committee');
+	assert.equal(bill.latest_action_date, '2026-08-31');
+});
+
+const referral = { billName: 'Kerala (Alteration of Name) Bill, 2026', billNumber: 155, billYear: 2026, committeeName: 'Example committee', dateRef: '2026-08-31 00:00:00.0' };
+
+test('official committee referrals require matching title, number, year and house and keep their own source link', () => {
+	const pending = { ...record, status: 'Pending', billPassedInLSDate: null, billPassedInRSDate: null, billAssentedDate: null };
+	const [enriched] = applyCommitteeReferrals([pending], [referral]);
+	const bill = normalizeBill(enriched);
+	assert.equal(bill.current_stage, 'referred_committee');
+	assert.equal(bill.latest_action_date, '2026-08-31');
+	assert.equal(normalizeActions(enriched, bill).find((action) => action.action_type === 'bill_referred_committee')?.source_url, committeeReferralSource);
+	for (const changed of [{ billNumber: 156 }, { billYear: 2025 }, { billName: 'Another Bill, 2026' }]) assert.equal(applyCommitteeReferrals([pending], [{ ...referral, ...changed }])[0], pending);
+	const rajya = { ...pending, billIntroducedInHouse: 'Rajya Sabha' };
+	assert.equal(applyCommitteeReferrals([rajya], [referral])[0], rajya);
+	const newer = { ...pending, referredToCommitteeDate: '2026-09-01' };
+	assert.equal(applyCommitteeReferrals([newer], [referral])[0], newer);
+	assert.equal(normalizeBill(applyCommitteeReferrals([record], [{ ...referral, dateRef: '2026-08-11' }])[0]).current_stage, 'assented');
+	assert.throws(() => applyCommitteeReferrals([pending], [{ ...referral, dateRef: '2026-08-01' }]), /predates/i);
+});
+
+test('committee referral pagination checks completeness and repeated records', async () => {
+	const pages: number[] = [];
+	const snapshot = await loadCommitteeReferrals(async (url) => {
+		const page = Number(new URL(url).searchParams.get('page'));
+		pages.push(page);
+		return { metaDataDto: { currentPageNumber: page, totalElements: 2, totalPages: 2 }, billsReferredDtoList: [{ ...referral, billNumber: page }] };
+	});
+	assert.deepEqual(pages, [1, 2]);
+	assert.equal(snapshot.records.length, 2);
+	await assert.rejects(() => loadCommitteeReferrals(async (url) => ({ metaDataDto: { currentPageNumber: Number(new URL(url).searchParams.get('page')), totalElements: 2, totalPages: 2 }, billsReferredDtoList: [referral] })), /repeated/i);
+	await assert.rejects(() => loadCommitteeReferrals(async () => ({ metaDataDto: { currentPageNumber: 1, totalElements: 2, totalPages: 1 }, billsReferredDtoList: [referral] })), /incomplete/i);
+});
+
+test('an explicitly dated official report notice advances a referred bill without inventing a report date', () => {
+	const pending = { ...record, status: 'Pending', billPassedInLSDate: null, billPassedInRSDate: null, billAssentedDate: null };
+	const report = { ...referral, dateRef: '2026-08-11', remarks: 'The Report of the Committee was presented to Lok Sabha and laid in Rajya Sabha on 23 September, 2026.' };
+	const [enriched] = applyCommitteeReferrals([pending], [report]);
+	const bill = normalizeBill(enriched);
+	assert.equal(bill.current_stage, 'committee_reported');
+	assert.equal(bill.latest_action_date, '2026-09-23');
+	assert.equal(normalizeActions(enriched, bill).find((action) => action.action_type === 'committee_report_tabled')?.source_url, committeeReferralSource);
+	assert.throws(() => applyCommitteeReferrals([pending], [{ ...report, remarks: 'The report was presented recently.' }]), /unrecognized.*date/i);
+	assert.throws(() => applyCommitteeReferrals([pending], [{ ...report, remarks: 'The Report of the Committee was presented to Lok Sabha and laid in Rajya Sabha on 30 February, 2026.' }]), /date/i);
+});
+
+test('malformed committee responses cannot mark a bill source current', async () => {
+	await assert.rejects(() => loadCommitteeReferrals(async () => ({ billsReferredDtoList: [referral] })), /pagination/i);
+	const metaDataDto = { currentPageNumber: 1, totalElements: 1, totalPages: 1 };
+	await assert.rejects(() => loadCommitteeReferrals(async () => ({ metaDataDto, billsReferredDtoList: [] })), /empty/i);
+	await assert.rejects(() => loadCommitteeReferrals(async () => ({ metaDataDto, billsReferredDtoList: [{ ...referral, dateRef: '2026-02-30' }] })), /date/i);
 });
 
 test('official date fields produce introduction, both passages and assent with their own source links', () => {
